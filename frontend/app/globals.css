@@ -1,0 +1,353 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ─── VaultOX Design System ──────────────────────────────────────────────── */
+
+@theme inline {
+  /* ── Shadcn internals (preserved) ── */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* ── VaultOX Palette ── */
+  --color-vault-base: #0a0e1a;
+  --color-vault-surface: #0e1225;
+  --color-vault-elevated: #1a1f35;
+  --color-vault-border: #3a3f5c;
+  --color-gold: #c9a84c;
+  --color-gold-dim: #8b6f30;
+  --color-teal: #4fc3c3;
+  --color-ok: #3ddc84;
+  --color-warn: #ff5a5a;
+  --color-text-primary: #e8e8f0;
+  --color-text-muted: #8a8ea8;
+
+  /* ── VaultOX Typography ── */
+  --font-heading: var(--font-syne), system-ui, sans-serif;
+  --font-body: var(--font-dm-mono), "Courier New", monospace;
+  --font-code: var(--font-jetbrains), "Courier New", monospace;
+  --font-sans: var(--font-syne), system-ui, sans-serif;
+  --font-mono: var(--font-dm-mono), "Courier New", monospace;
+}
+
+/* ─── VaultOX Dark-First Theme ──────────────────────────────────────────── */
+:root {
+  /* Shadcn tokens mapped to VaultOX Midnight Finance palette */
+  --background: #0a0e1a;
+  --foreground: #e8e8f0;
+  --card: #0e1225;
+  --card-foreground: #e8e8f0;
+  --popover: #0e1225;
+  --popover-foreground: #e8e8f0;
+  --primary: #c9a84c;
+  --primary-foreground: #0a0e1a;
+  --secondary: #1a1f35;
+  --secondary-foreground: #e8e8f0;
+  --muted: #1a1f35;
+  --muted-foreground: #8a8ea8;
+  --accent: #1a1f35;
+  --accent-foreground: #c9a84c;
+  --destructive: #ff5a5a;
+  --border: #3a3f5c;
+  --input: #1a1f35;
+  --ring: #c9a84c;
+  --chart-1: #c9a84c;
+  --chart-2: #4fc3c3;
+  --chart-3: #3ddc84;
+  --chart-4: #8b6f30;
+  --chart-5: #ff5a5a;
+  --radius: 0.5rem;
+  --sidebar: #0e1225;
+  --sidebar-foreground: #e8e8f0;
+  --sidebar-primary: #c9a84c;
+  --sidebar-primary-foreground: #0a0e1a;
+  --sidebar-accent: #1a1f35;
+  --sidebar-accent-foreground: #e8e8f0;
+  --sidebar-border: #3a3f5c;
+  --sidebar-ring: #c9a84c;
+}
+
+/* VaultOX is dark-first — .dark mirrors :root exactly for forced-dark wrappers */
+.dark {
+  --background: #0a0e1a;
+  --foreground: #e8e8f0;
+  --card: #0e1225;
+  --card-foreground: #e8e8f0;
+  --popover: #0e1225;
+  --popover-foreground: #e8e8f0;
+  --primary: #c9a84c;
+  --primary-foreground: #0a0e1a;
+  --secondary: #1a1f35;
+  --secondary-foreground: #e8e8f0;
+  --muted: #1a1f35;
+  --muted-foreground: #8a8ea8;
+  --accent: #1a1f35;
+  --accent-foreground: #c9a84c;
+  --destructive: #ff5a5a;
+  --border: #3a3f5c;
+  --input: #1a1f35;
+  --ring: #c9a84c;
+  --sidebar: #0e1225;
+  --sidebar-foreground: #e8e8f0;
+  --sidebar-primary: #c9a84c;
+  --sidebar-primary-foreground: #0a0e1a;
+  --sidebar-accent: #1a1f35;
+  --sidebar-accent-foreground: #e8e8f0;
+  --sidebar-border: #3a3f5c;
+  --sidebar-ring: #c9a84c;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-heading;
+    background-color: #0a0e1a;
+    color: #e8e8f0;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  body {
+    @apply bg-background text-foreground min-h-screen;
+  }
+}
+
+/* ─── Typography Utilities ──────────────────────────────────────────────── */
+@layer utilities {
+  .font-heading {
+    font-family: var(--font-heading);
+  }
+  .font-body {
+    font-family: var(--font-body);
+  }
+  .font-code {
+    font-family: var(--font-code);
+  }
+
+  /* Gold glow effects */
+  .glow-gold {
+    box-shadow:
+      0 0 20px rgba(201, 168, 76, 0.15),
+      0 0 40px rgba(201, 168, 76, 0.08);
+  }
+  .glow-teal {
+    box-shadow:
+      0 0 20px rgba(79, 195, 195, 0.15),
+      0 0 40px rgba(79, 195, 195, 0.08);
+  }
+  .glow-ok {
+    box-shadow:
+      0 0 20px rgba(61, 220, 132, 0.2),
+      0 0 40px rgba(61, 220, 132, 0.1);
+  }
+
+  /* Text color utilities */
+  .text-gold {
+    color: #c9a84c;
+  }
+  .text-gold-dim {
+    color: #8b6f30;
+  }
+  .text-teal {
+    color: #4fc3c3;
+  }
+  .text-ok {
+    color: #3ddc84;
+  }
+  .text-warn {
+    color: #ff5a5a;
+  }
+  .text-primary-vault {
+    color: #e8e8f0;
+  }
+  .text-muted-vault {
+    color: #8a8ea8;
+  }
+
+  /* Background utilities */
+  .bg-vault-base {
+    background-color: #0a0e1a;
+  }
+  .bg-vault-surface {
+    background-color: #0e1225;
+  }
+  .bg-vault-elevated {
+    background-color: #1a1f35;
+  }
+
+  /* Border utility */
+  .border-vault {
+    border-color: #3a3f5c;
+  }
+
+  /* Grid dot background */
+  .bg-grid-dots {
+    background-image: radial-gradient(
+      circle,
+      rgba(58, 63, 92, 0.6) 1px,
+      transparent 1px
+    );
+    background-size: 28px 28px;
+  }
+
+  /* Teal pulse animation */
+  .pulse-teal {
+    animation: pulseTeal 3s ease-in-out infinite;
+  }
+
+  /* Gold text shimmer */
+  .shimmer-gold {
+    background: linear-gradient(90deg, #c9a84c 0%, #e8c96a 50%, #c9a84c 100%);
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: shimmer 3s linear infinite;
+  }
+
+  /* Diagonal line utility */
+  .diagonal-gold {
+    background: linear-gradient(
+      135deg,
+      transparent 49.5%,
+      #c9a84c 49.5%,
+      #c9a84c 50.5%,
+      transparent 50.5%
+    );
+  }
+
+  /* Status dot pulse */
+  .status-pulse-green {
+    animation: statusPulse 2s ease-in-out infinite;
+  }
+}
+
+/* ─── Keyframe Animations ────────────────────────────────────────────────── */
+@keyframes pulseTeal {
+  0%,
+  100% {
+    opacity: 1;
+    text-shadow: 0 0 8px rgba(79, 195, 195, 0.4);
+  }
+  50% {
+    opacity: 0.75;
+    text-shadow: 0 0 20px rgba(79, 195, 195, 0.8);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 0% center;
+  }
+  100% {
+    background-position: 200% center;
+  }
+}
+
+@keyframes statusPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(61, 220, 132, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(61, 220, 132, 0);
+  }
+}
+
+@keyframes arcDash {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* ─── Scrollbar (dark themed) ───────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0a0e1a;
+}
+::-webkit-scrollbar-thumb {
+  background: #3a3f5c;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #c9a84c;
+}
+
+/* ─── Selection ─────────────────────────────────────────────────────────── */
+::selection {
+  background: rgba(201, 168, 76, 0.2);
+  color: #e8e8f0;
+}

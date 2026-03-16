@@ -1,0 +1,120 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum KycRequestStatus {
+  pending
+  approved
+  rejected
+  under_review
+}
+
+enum AmlScreeningStatus {
+  cleared
+  flagged
+  review
+}
+
+enum PersistedSettlementStatus {
+  pending
+  settling
+  completed
+  cancelled
+  failed
+}
+
+model AuditEvent {
+  id          String         @id @default(uuid())
+  walletAddress String       @map("wallet_address")
+  eventType   String         @map("event_type")
+  description String
+  metadata    Json?
+  txHash      String?        @map("tx_hash")
+  ipAddress   String?        @map("ip_address")
+  createdAt   DateTime       @default(now()) @map("created_at")
+
+  @@index([walletAddress])
+  @@map("audit_events")
+}
+
+model KycRequest {
+  id               String           @id @default(uuid())
+  walletAddress    String           @map("wallet_address")
+  institutionName  String           @map("institution_name")
+  jurisdiction     String?
+  role             String?
+  email            String?
+  tier             Int              @default(3)
+  kycDocumentsHash String?          @map("kyc_documents_hash")
+  status           KycRequestStatus @default(pending)
+  reviewerNotes    String?          @map("reviewer_notes")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+
+  @@index([walletAddress])
+  @@map("kyc_requests")
+}
+
+model AmlScreening {
+  id            String             @id @default(uuid())
+  walletAddress String             @map("wallet_address")
+  riskScore     Int                @map("risk_score")
+  status        AmlScreeningStatus @default(cleared)
+  flags         Json
+  provider      String             @default("MockAmlProvider")
+  providerRef   String?            @map("provider_ref")
+  screenedAt    DateTime           @default(now()) @map("screened_at")
+
+  @@index([walletAddress])
+  @@map("aml_screenings")
+}
+
+model Settlement {
+  id                    String                    @id @default(uuid())
+  initiatorWallet       String                    @map("initiator_wallet")
+  receiverWallet        String                    @map("receiver_wallet")
+  fromInstitutionName   String                    @map("from_institution_name")
+  toInstitutionName     String                    @map("to_institution_name")
+  fromJurisdiction      String?                   @map("from_jurisdiction")
+  toJurisdiction        String?                   @map("to_jurisdiction")
+  amount                Decimal                   @db.Decimal(20, 2)
+  currency              String                    @default("USDC")
+  status                PersistedSettlementStatus @default(pending)
+  txHash                String?                   @map("tx_hash")
+  unsignedTransaction   String?                   @map("unsigned_transaction")
+  estimatedCompletionMs Int?                      @map("estimated_completion_ms")
+  complianceHash        String?                   @map("compliance_hash")
+  travelRulePayload     Json?                     @map("travel_rule_payload")
+  corridor              String?
+  fxRate                Float?                    @map("fx_rate")
+  completedAt           DateTime?                 @map("completed_at")
+  createdAt             DateTime                  @default(now()) @map("created_at")
+  updatedAt             DateTime                  @updatedAt @map("updated_at")
+
+  @@index([initiatorWallet])
+  @@index([receiverWallet])
+  @@map("settlements")
+}
+
+model Report {
+  id            String    @id @default(uuid())
+  walletAddress String    @map("wallet_address")
+  framework     String
+  title         String
+  fileName      String    @map("file_name")
+  status        String    @default("ready")
+  downloadUrl   String?   @map("download_url")
+  fileSizeBytes Int?      @map("file_size_bytes")
+  periodFrom    DateTime  @map("period_from")
+  periodTo      DateTime  @map("period_to")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  completedAt   DateTime? @map("completed_at")
+
+  @@index([walletAddress])
+  @@map("reports")
+}

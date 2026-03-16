@@ -1,0 +1,20 @@
+{
+  "name": "poket-contracts",
+  "version": "0.1.0",
+  "description": "On-chain Bonding Curve for Poket",
+  "main": "index.js",
+  "scripts": {
+    "lint:fix": "prettier */*.js* --write",
+    "test": "anchor test"
+  },
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.30.1",
+    "@solana/web3.js": "^1.95.3"
+  },
+  "devDependencies": {
+    "jest": "^29.0.3",
+    "mocha": "^9.0.3",
+    "ts-mocha": "^10.0.0",
+    "typescript": "^4.3.5"
+  }
+}

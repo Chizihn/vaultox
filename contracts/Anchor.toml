@@ -1,0 +1,35 @@
+[toolchain]
+
+[features]
+seeds = false
+skip-lint = false
+
+# ---------------------------------------------------------------------------
+# Program IDs — Replace with real IDs after deploying via beta.solpg.io
+# Deploy each program separately in Solana Playground (Devnet), copy the
+# Program ID shown after deployment, and paste it below.
+# ---------------------------------------------------------------------------
+[programs.devnet]
+compliance_registry = "CReg1111111111111111111111111111111111111111"
+vault_program       = "VauLt111111111111111111111111111111111111111"
+settlement_engine   = "Stl11111111111111111111111111111111111111111"
+
+[programs.localnet]
+compliance_registry = "CReg1111111111111111111111111111111111111111"
+vault_program       = "VauLt111111111111111111111111111111111111111"
+settlement_engine   = "Stl11111111111111111111111111111111111111111"
+
+[workspace]
+members = [
+  "programs/vaultox",
+]
+
+[registry]
+url = "https://api.apr.dev"
+
+[provider]
+cluster = "Devnet"
+wallet = "~/.config/solana/id.json"
+
+[scripts]
+test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"

@@ -1,0 +1,61 @@
+import { useQuery } from "@tanstack/react-query";
+import api from "../../services/api";
+import { useAuthStore } from "../../store";
+
+function tierToComplianceScore(tier: number | null): number {
+  if (tier === 1) return 98;
+  if (tier === 2) return 85;
+  if (tier === 3) return 72;
+  return 0;
+}
+
+export const useDashboard = () => {
+  const walletAddress = useAuthStore((state) => state.walletAddress);
+  const tier = useAuthStore((state) => state.tier);
+
+  const portfolioQuery = useQuery({
+    queryKey: ["dashboard-portfolio", walletAddress],
+    queryFn: async () => {
+      const response = await api.get("/vaults/portfolio/summary");
+      return response.data as {
+        totalCurrentValue: number;
+        totalAccruedYield: number;
+        unrealizedGainPct: number;
+      };
+    },
+    enabled: !!walletAddress,
+  });
+
+  const settlementsQuery = useQuery({
+    queryKey: ["dashboard-settlements", walletAddress],
+    queryFn: async () => {
+      const response = await api.get("/settlements");
+      const list: Array<{ status: string }> = response.data?.settlements ?? [];
+      return {
+        activeSettlements: list.filter((s) => s.status === "processing").length,
+        pendingSettlements: list.filter((s) => s.status === "pending").length,
+      };
+    },
+    enabled: !!walletAddress,
+  });
+
+  const portfolio = portfolioQuery.data;
+  const settlementCounts = settlementsQuery.data;
+
+  const metrics =
+    portfolio || settlementCounts
+      ? {
+          totalAUM: portfolio?.totalCurrentValue ?? 0,
+          aumDelta: portfolio?.unrealizedGainPct ?? 0,
+          yieldToday: portfolio?.totalAccruedYield ?? 0,
+          activeSettlements: settlementCounts?.activeSettlements ?? 0,
+          pendingSettlements: settlementCounts?.pendingSettlements ?? 0,
+          complianceScore: tierToComplianceScore(tier),
+        }
+      : undefined;
+
+  return {
+    metrics,
+    isLoading: portfolioQuery.isLoading || settlementsQuery.isLoading,
+  };
+};
