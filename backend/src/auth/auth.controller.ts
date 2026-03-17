@@ -59,6 +59,21 @@ export class AuthController {
     return this.authService.requestAccess(body);
   }
 
+  @Get("request-access/:wallet")
+  @HttpCode(200)
+  getRequestAccessStatus(@Param("wallet") wallet: string) {
+    return this.authService.getRequestAccessStatus(wallet);
+  }
+
+  @Post("demo/grant-access")
+  @HttpCode(200)
+  @ApiOperation({
+    summary: "DEMO ONLY: Grant instant access to a wallet for testing",
+  })
+  demoGrantAccess(@Body() body: { walletAddress: string }) {
+    return this.authService.demoGrantAccess(body.walletAddress);
+  }
+
   @Delete("session")
   @HttpCode(200)
   signOut() {

@@ -11,6 +11,7 @@ import { StrategyCard } from "@/components/dashboard/StrategyCard";
 import { SettlementFeed } from "@/components/dashboard/SettlementFeed";
 import { WorldMap } from "@/components/dashboard/WorldMap";
 import { ComplianceRing } from "@/components/dashboard/ComplianceRing";
+import { TerminalSidebar } from "@/components/dashboard/TerminalSidebar";
 import { AnimatedNumber } from "@/components/shared/AnimatedNumber";
 
 import { useAuthStore } from "@/store";
@@ -337,6 +338,8 @@ export function DashboardClient() {
               <SettlementFeed settlements={safeSettlements} maxItems={5} />
             </div>
           </section>
+
+          <TerminalSidebar />
 
           {/* World map */}
           <section aria-label="Global settlement network">

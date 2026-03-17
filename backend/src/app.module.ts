@@ -9,6 +9,7 @@ import { SettlementsModule } from "./settlements/settlements.module";
 import { PrismaModule } from "./prisma/prisma.module";
 import { ReportsModule } from "./reports/reports.module";
 import { AppController } from "./app.controller";
+import { MarketDataModule } from "./market-data/market-data.module";
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { AppController } from "./app.controller";
     VaultsModule,
     SettlementsModule,
     ReportsModule,
+    MarketDataModule,
   ],
   controllers: [AppController],
   providers: [],

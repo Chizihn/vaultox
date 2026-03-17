@@ -172,7 +172,7 @@ export function LoginForm() {
                         : "hover:opacity-90",
                     )}
                   >
-                    Sign to Verify
+                    Verify
                     <ChevronRight className="size-4" />
                   </button>
                   <button

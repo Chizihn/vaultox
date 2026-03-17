@@ -164,6 +164,30 @@ export class ComplianceService {
     return { requestId: saved.id, status: saved.status };
   }
 
+  async getLatestKycRequest(walletAddress: string) {
+    const latestRequest = await this.prisma.kycRequest.findFirst({
+      where: { walletAddress },
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (!latestRequest) {
+      return null;
+    }
+
+    return {
+      requestId: latestRequest.id,
+      walletAddress: latestRequest.walletAddress,
+      institutionName: latestRequest.institutionName,
+      jurisdiction: latestRequest.jurisdiction,
+      role: latestRequest.role,
+      email: latestRequest.email,
+      tier: latestRequest.tier,
+      status: latestRequest.status,
+      createdAt: latestRequest.createdAt,
+      updatedAt: latestRequest.updatedAt,
+    };
+  }
+
   async triggerAmlScreening(walletAddress: string) {
     const lastChar = walletAddress.slice(-1).toLowerCase();
     const riskSeed = parseInt(lastChar, 36);
@@ -261,11 +285,68 @@ export class ComplianceService {
         orderBy: { createdAt: "desc" },
       });
 
+      // DEMO ONLY: If enabled, treat approved DB request as verified for testing.
+      // In production/mainnet, access must come from an active on-chain credential.
+      const demoModeEnabled = process.env.DEMO_MODE === "true";
+      if (demoModeEnabled && latestRequest?.status === "approved") {
+        return {
+          credentialStatus: "verified",
+          institution: {
+            id: walletAddress,
+            name: latestRequest.institutionName,
+            tier: (latestRequest.tier as 1 | 2 | 3) ?? 3,
+            jurisdiction: latestRequest.jurisdiction ?? "Unknown",
+            jurisdictionFlag: this.getJurisdictionFlag(
+              latestRequest.jurisdiction ?? "",
+            ),
+            city: this.getDefaultCity(latestRequest.jurisdiction ?? ""),
+            walletAddress,
+          },
+        };
+      }
+
       return {
         credentialStatus: latestRequest ? "pending_kyc" : "unregistered",
         institution: null,
       };
     }
+  }
+
+  /**
+   * DEMO ONLY: Mark the latest KYC request for a wallet as approved.
+   * This simulates compliance team approval and grants immediate access on next login.
+   * Persisted in the database; intended for testing/demo recordings.
+   */
+  async approveKycRequest(walletAddress: string) {
+    const latestRequest = await this.prisma.kycRequest.findFirst({
+      where: { walletAddress },
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (!latestRequest) {
+      throw new Error(`No KYC request found for wallet ${walletAddress}`);
+    }
+
+    const updated = await this.prisma.kycRequest.update({
+      where: { id: latestRequest.id },
+      data: { status: "approved" },
+    });
+
+    await this.recordAuditEvent(
+      walletAddress,
+      "kyc.approved",
+      "[DEMO] KYC request approved via demo grant endpoint",
+      {
+        requestId: latestRequest.id,
+        institutionName: latestRequest.institutionName,
+      },
+    );
+
+    return {
+      success: true,
+      message: `KYC request approved for ${latestRequest.institutionName}. Wallet ${walletAddress} will have verified status on next login.`,
+      requestId: updated.id,
+    };
   }
 
   async recordAuditEvent(

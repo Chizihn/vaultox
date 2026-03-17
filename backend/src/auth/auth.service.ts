@@ -1,4 +1,8 @@
-import { Injectable, UnauthorizedException } from "@nestjs/common";
+import {
+  BadRequestException,
+  Injectable,
+  UnauthorizedException,
+} from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import * as nacl from "tweetnacl";
 import * as bs58 from "bs58";
@@ -91,5 +95,37 @@ export class AuthService {
 
   async requestAccess(body: any) {
     return this.complianceService.submitKycRequest(body.walletAddress, body);
+  }
+
+  async getRequestAccessStatus(walletAddress: string) {
+    const latestRequest =
+      await this.complianceService.getLatestKycRequest(walletAddress);
+
+    if (!latestRequest) {
+      return { exists: false };
+    }
+
+    return {
+      exists: true,
+      request: latestRequest,
+    };
+  }
+
+  /**
+   * DEMO ONLY: Immediately approve the latest KYC request for a wallet.
+   * This simulates a compliance officer approving the request.
+   * On next login, the wallet will have status="verified" if an approved request exists.
+   * Safe for hackathon/demo recordings; persisted in DB.
+   */
+  async demoGrantAccess(walletAddress: string) {
+    if (process.env.DEMO_MODE !== "true") {
+      throw new BadRequestException(
+        "Demo grant-access is disabled. Set DEMO_MODE=true to enable it.",
+      );
+    }
+
+    const result =
+      await this.complianceService.approveKycRequest(walletAddress);
+    return result;
   }
 }

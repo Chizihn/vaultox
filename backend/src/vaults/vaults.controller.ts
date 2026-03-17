@@ -84,4 +84,12 @@ export class VaultsController {
   withdraw(@WalletAddress() wallet: string, @Body() body: any) {
     return this.vaultsService.withdraw(wallet, body.positionId, body.amount);
   }
+
+  @Get("transactions/status")
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Get on-chain status for a submitted signature" })
+  getTransactionStatus(@Query("signature") signature?: string) {
+    return this.vaultsService.getTransactionStatus(signature ?? "");
+  }
 }

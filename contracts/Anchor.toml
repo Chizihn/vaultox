@@ -9,15 +9,19 @@ skip-lint = false
 # Deploy each program separately in Solana Playground (Devnet), copy the
 # Program ID shown after deployment, and paste it below.
 # ---------------------------------------------------------------------------
+# All three programs are compiled into a single combined vaultox program.
+# Program ID: https://explorer.solana.com/address/5iRF8NUVhQuTGNd4Thndc4LA3PGShfgmKvWX4C25JAuG?cluster=devnet
 [programs.devnet]
-compliance_registry = "CReg1111111111111111111111111111111111111111"
-vault_program       = "VauLt111111111111111111111111111111111111111"
-settlement_engine   = "Stl11111111111111111111111111111111111111111"
+compliance_registry = "5iRF8NUVhQuTGNd4Thndc4LA3PGShfgmKvWX4C25JAuG"
+vault_program       = "5iRF8NUVhQuTGNd4Thndc4LA3PGShfgmKvWX4C25JAuG"
+settlement_engine   = "5iRF8NUVhQuTGNd4Thndc4LA3PGShfgmKvWX4C25JAuG"
+vaultox             = "5iRF8NUVhQuTGNd4Thndc4LA3PGShfgmKvWX4C25JAuG"
 
 [programs.localnet]
-compliance_registry = "CReg1111111111111111111111111111111111111111"
-vault_program       = "VauLt111111111111111111111111111111111111111"
-settlement_engine   = "Stl11111111111111111111111111111111111111111"
+compliance_registry = "5iRF8NUVhQuTGNd4Thndc4LA3PGShfgmKvWX4C25JAuG"
+vault_program       = "5iRF8NUVhQuTGNd4Thndc4LA3PGShfgmKvWX4C25JAuG"
+settlement_engine   = "5iRF8NUVhQuTGNd4Thndc4LA3PGShfgmKvWX4C25JAuG"
+vaultox             = "5iRF8NUVhQuTGNd4Thndc4LA3PGShfgmKvWX4C25JAuG"
 
 [workspace]
 members = [

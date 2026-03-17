@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -220,6 +220,60 @@ const JURISDICTION_OPTIONS = [
   "Zimbabwe",
 ].sort((a, b) => a.localeCompare(b));
 
+const ROLE_OPTIONS = [
+  "Board Member",
+  "CEO / Managing Director",
+  "CFO",
+  "COO",
+  "CIO",
+  "CTO",
+  "Chief Compliance Officer",
+  "Chief Legal Officer / General Counsel",
+  "Chief Risk Officer",
+  "Chief Operating Officer",
+  "Chief Technology Officer",
+  "Chief Investment Officer",
+  "Chief Security Officer",
+  "MLRO (Money Laundering Reporting Officer)",
+  "Compliance Director",
+  "Compliance Manager",
+  "Compliance Officer",
+  "KYC / Onboarding Manager",
+  "KYC / Onboarding Analyst",
+  "AML Analyst",
+  "Sanctions Officer",
+  "Regulatory Affairs Manager",
+  "Legal Counsel",
+  "Finance Director",
+  "Finance Manager",
+  "Controller",
+  "Head of Treasury",
+  "Treasury Manager",
+  "Treasury Operations Specialist",
+  "Settlement Operations Manager",
+  "Settlement Operations Analyst",
+  "Head of Operations",
+  "Operations Manager",
+  "Back Office Manager",
+  "Middle Office Manager",
+  "Risk Manager",
+  "Risk Analyst",
+  "Head of Trading",
+  "Trader",
+  "Portfolio Manager",
+  "Investment Manager",
+  "Custody Operations Manager",
+  "Payments Manager",
+  "Relationship Manager",
+  "Institutional Sales",
+  "Business Development Manager",
+  "Authorized Signatory",
+  "Company Secretary",
+  "Internal Auditor",
+  "External Auditor",
+  "Other",
+].sort((a, b) => a.localeCompare(b));
+
 // ─── Sub-view: Pending KYC ──────────────────────────────────────────────────
 
 function PendingKYCView({
@@ -350,12 +404,56 @@ function RequestAccessView({
   onDisconnect: () => void;
 }) {
   const [step, setStep] = useState<"form" | "submitted">("form");
+  const [isHydrating, setIsHydrating] = useState(true);
   const [form, setForm] = useState({
     institutionName: "",
     jurisdiction: "",
     email: "",
     role: "",
   });
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const hydrateFromBackend = async () => {
+      if (!walletAddress || walletAddress === "Unknown Wallet") {
+        if (isMounted) {
+          setIsHydrating(false);
+        }
+        return;
+      }
+
+      try {
+        const { data } = await api.get(`/auth/request-access/${walletAddress}`);
+
+        if (!isMounted) {
+          return;
+        }
+
+        if (data?.exists && data?.request) {
+          setForm({
+            institutionName: data.request.institutionName ?? "",
+            jurisdiction: data.request.jurisdiction ?? "",
+            email: data.request.email ?? "",
+            role: data.request.role ?? "",
+          });
+          setStep("submitted");
+        }
+      } catch {
+        // Keep default state when lookup fails.
+      } finally {
+        if (isMounted) {
+          setIsHydrating(false);
+        }
+      }
+    };
+
+    hydrateFromBackend();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [walletAddress]);
 
   const isValid =
     form.institutionName.trim() &&
@@ -367,6 +465,25 @@ function RequestAccessView({
     await api.post("/auth/request-access", { ...form, walletAddress });
     setStep("submitted");
   };
+
+  if (isHydrating) {
+    return (
+      <motion.div
+        key="request-hydrating"
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        className="flex flex-col items-center gap-4 text-center max-w-sm"
+      >
+        <div className="flex size-16 items-center justify-center rounded-full border-2 border-vault-border bg-vault-elevated">
+          <Clock className="size-8 text-muted-vault" />
+        </div>
+        <p className="font-body text-sm text-muted-vault">
+          Checking your latest access request...
+        </p>
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div
@@ -461,15 +578,22 @@ function RequestAccessView({
                 <label className="mb-1.5 block font-body text-[10px] uppercase tracking-widest text-muted-vault">
                   Your Role
                 </label>
-                <input
-                  type="text"
+                <select
                   value={form.role}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, role: e.target.value }))
                   }
-                  placeholder="e.g. Chief Risk Officer"
-                  className="w-full rounded-sm border border-vault-border bg-vault-elevated px-4 py-2.5 font-body text-sm text-text-primary placeholder:text-muted-vault/40 focus:border-gold/40 focus:outline-none"
-                />
+                  className="w-full appearance-none rounded-sm border border-vault-border bg-vault-elevated px-4 py-2.5 font-body text-sm text-text-primary focus:border-gold/40 focus:outline-none"
+                >
+                  <option value="" disabled>
+                    Select role
+                  </option>
+                  {ROLE_OPTIONS.map((role) => (
+                    <option key={role} value={role}>
+                      {role}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>
@@ -554,6 +678,28 @@ function RequestAccessView({
                 </div>
               ))}
             </div>
+            {/* DEMO ONLY: Grant immediate access for testing/demo recordings */}
+            {process.env.NEXT_PUBLIC_DEMO_MODE === "true" && (
+              <button
+                onClick={async () => {
+                  try {
+                    await api.post("/auth/demo/grant-access", {
+                      walletAddress,
+                    });
+                    // Refresh auth state by clearing and re-authenticating
+                    alert(
+                      "✓ Demo access granted! Please reconnect your wallet to login.",
+                    );
+                    onDisconnect();
+                  } catch (error) {
+                    alert(`Error granting demo access: ${error}`);
+                  }
+                }}
+                className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-sm bg-vault-highlight/20 border border-vault-highlight text-vault-highlight font-body text-xs hover:bg-vault-highlight/30 transition-colors"
+              >
+                <span>Demo: Grant Access</span>
+              </button>
+            )}
             <button
               onClick={onDisconnect}
               className="flex items-center gap-1.5 font-body text-xs text-muted-vault underline-offset-2 hover:underline"

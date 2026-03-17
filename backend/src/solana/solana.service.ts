@@ -606,7 +606,13 @@ export class SolanaService {
       const account = await this.accounts.complianceCredential.fetch(pda);
       return account;
     } catch {
-      this.logger.error(`Credential not found for ${walletAddress}`);
+      if (process.env.DEMO_MODE === "true") {
+        this.logger.debug(
+          `Credential not found for ${walletAddress} (demo mode fallback active)`,
+        );
+      } else {
+        this.logger.warn(`Credential not found for ${walletAddress}`);
+      }
       return null;
     }
   }

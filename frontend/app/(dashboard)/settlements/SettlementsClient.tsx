@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import {
   ArrowRight,
   CheckCircle,
+  AlertTriangle,
   Filter,
   Download,
   ExternalLink,
@@ -18,20 +19,40 @@ import { WorldMap } from "@/components/dashboard/WorldMap";
 import { SettlementProgressModal } from "@/components/dashboard/SettlementProgressModal";
 import { SettlementBadge } from "@/components/shared/StatusBadge";
 import { useSettlementProgress } from "@/hooks/useSettlementProgress";
+import { useMarketQuotesStream } from "@/hooks/useMarketQuotesStream";
 import api from "@/services/api";
 
-const FX_RATES: Record<string, number> = {
-  "CH → SG": 0.9201,
-  "CH → AE": 0.9548,
-  "US → CH": 1.0,
-  "SG → JP": 0.0067,
-  "DE → CH": 1.0812,
-  default: 1.0,
+type SettlementCalendarStatus = {
+  jurisdiction: string;
+  date: string;
+  isHoliday: boolean;
+  reason: string;
+  source: string;
+};
+
+const FX_SYMBOL_BY_JURISDICTION: Record<string, string> = {
+  Switzerland: "USDCHF",
+  Singapore: "USDSGD",
+  UAE: "USDAED",
+  "United Arab Emirates": "USDAED",
 };
 
 export function SettlementsClient() {
   const { institution } = useAuthStore();
   const [liveArcs, setLiveArcs] = useState<SettlementArc[]>([]);
+  const [calendarStatus, setCalendarStatus] =
+    useState<SettlementCalendarStatus | null>(null);
+  const [toInstitution, setToInstitution] = useState<Institution | null>(null);
+  const [amount, setAmount] = useState("");
+  const [showModal, setShowModal] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const { quotes: quoteMap, provider: quoteProvider } = useMarketQuotesStream([
+    "EURUSD",
+    "USDCHF",
+    "USDSGD",
+    "USDAED",
+  ]);
 
   // Network Directory Fallback
   const networkDirectory: Institution[] = [
@@ -72,10 +93,8 @@ export function SettlementsClient() {
       walletAddress: "2Hw6oLx4Um9QvZiJ8sTg5NbEhD3kCf7lYq",
     },
   ];
-  const {
-    settlements: fetchedSettlements,
-    initiateSettlement,
-  } = useSettlements();
+  const { settlements: fetchedSettlements, initiateSettlement } =
+    useSettlements();
   const { steps, isRunning, isComplete, totalTime, startSettlement, reset } =
     useSettlementProgress();
 
@@ -98,19 +117,46 @@ export function SettlementsClient() {
     };
   }, []);
 
-  const [toInstitution, setToInstitution] = useState<Institution | null>(null);
-  const [amount, setAmount] = useState("");
-  const [showModal, setShowModal] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  useEffect(() => {
+    let ignore = false;
+
+    const loadCalendarStatus = async () => {
+      if (!toInstitution?.jurisdiction) {
+        if (!ignore) setCalendarStatus(null);
+        return;
+      }
+
+      try {
+        const response = await api.get("/market-data/settlement-calendar", {
+          params: { jurisdiction: toInstitution.jurisdiction },
+        });
+
+        if (!ignore) {
+          setCalendarStatus(response.data as SettlementCalendarStatus);
+        }
+      } catch (error) {
+        console.error("Failed to load settlement calendar status", error);
+      }
+    };
+
+    void loadCalendarStatus();
+
+    return () => {
+      ignore = true;
+    };
+  }, [toInstitution?.jurisdiction]);
 
   const fromInst = institution ?? networkDirectory[0];
   const numAmount = parseFloat(amount.replace(/,/g, "")) || 0;
 
-  const fxRate =
-    fromInst && toInstitution
-      ? (FX_RATES[`${fromInst.city.slice(0, 2)}`] ?? FX_RATES["default"])
-      : 1;
+  const fxSymbol = toInstitution
+    ? (FX_SYMBOL_BY_JURISDICTION[toInstitution.jurisdiction] ?? "EURUSD")
+    : "EURUSD";
+  const selectedQuote = quoteMap[fxSymbol];
+  const fxRate = selectedQuote?.price ?? 1;
+  const isSixVerified =
+    Boolean(selectedQuote?.source?.toLowerCase().includes("six")) ||
+    quoteProvider.toLowerCase().includes("six");
 
   const handleInitiate = async () => {
     if (!fromInst || !toInstitution || numAmount <= 0) return;
@@ -312,13 +358,38 @@ export function SettlementsClient() {
                       1 USDC = {fxRate}{" "}
                       {toInstitution.jurisdiction === "Switzerland"
                         ? "CHF"
-                        : "USD"}{" "}
-                      · Live
+                        : toInstitution.jurisdiction === "Singapore"
+                          ? "SGD"
+                          : toInstitution.jurisdiction === "UAE" ||
+                              toInstitution.jurisdiction ===
+                                "United Arab Emirates"
+                            ? "AED"
+                            : "USD"}{" "}
+                      · {isSixVerified ? "SIX Verified" : "Fallback"}
                     </span>
                   </div>
                   <div className="flex items-center justify-between font-body text-xs">
                     <span className="text-muted-vault">Est. Settlement</span>
                     <span className="text-teal">~1.8 seconds</span>
+                  </div>
+                </motion.div>
+              )}
+
+              {toInstitution && calendarStatus?.isHoliday && (
+                <motion.div
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex items-start gap-2 rounded-sm border border-warn/30 bg-warn/10 p-3"
+                >
+                  <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warn" />
+                  <div>
+                    <p className="font-body text-xs text-warn">
+                      {calendarStatus.jurisdiction} market is closed today (
+                      {calendarStatus.reason}).
+                    </p>
+                    <p className="mt-1 font-body text-[10px] text-muted-vault">
+                      Settlement may experience extended latency.
+                    </p>
                   </div>
                 </motion.div>
               )}

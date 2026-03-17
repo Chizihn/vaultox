@@ -22,7 +22,7 @@ use compliance_registry::*;
 use vault_program::*;
 use settlement_engine::*;
 
-declare_id!("VauLtOS1111111111111111111111111111111111111");
+declare_id!("5iRF8NUVhQuTGNd4Thndc4LA3PGShfgmKvWX4C25JAuG");
 
 #[program]
 pub mod vaultox {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Lock, ChevronDown, ChevronUp, Shield, TrendingUp } from "lucide-react";
@@ -18,6 +18,7 @@ import { YieldLadder } from "@/components/dashboard/YieldLadder";
 import { DepositPanel } from "@/components/dashboard/DepositPanel";
 import { SparklineChart } from "@/components/dashboard/SparklineChart";
 import { TierBadge } from "@/components/shared/TierBadge";
+import api from "@/services/api";
 
 const TABS = ["My Vaults", "Available Strategies", "RWA Vaults"] as const;
 type Tab = (typeof TABS)[number];
@@ -26,6 +27,14 @@ const riskColors: Record<RiskRating, string> = {
   Low: "text-ok bg-ok/10 border-ok/30",
   Medium: "text-gold bg-gold/10 border-gold/30",
   High: "text-warn bg-warn/10 border-warn/30",
+};
+
+type MarketQuote = {
+  symbol: string;
+  price: number;
+  change24hPct: number;
+  asOf: string;
+  source: string;
 };
 
 export function VaultsClient() {
@@ -42,9 +51,50 @@ export function VaultsClient() {
   const [activeTab, setActiveTab] = useState<Tab>("Available Strategies");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [depositTarget, setDepositTarget] = useState<string | null>(null);
+  const [commodityQuotes, setCommodityQuotes] = useState<
+    Record<string, MarketQuote>
+  >({});
+  const [commodityProvider, setCommodityProvider] = useState("fallback");
 
   const currentStrategy = searchParams.get("strategy");
-  const [prevStrategy, setPrevStrategy] = useState<string | null>(currentStrategy);
+  const [prevStrategy, setPrevStrategy] = useState<string | null>(
+    currentStrategy,
+  );
+
+  useEffect(() => {
+    let ignore = false;
+
+    const loadCommodityQuotes = async () => {
+      try {
+        const response = await api.get("/market-data/quotes", {
+          params: { symbols: "XAUUSD,XAGUSD" },
+        });
+
+        const quotes = (response.data?.quotes ?? []) as MarketQuote[];
+        const nextQuotes = quotes.reduce<Record<string, MarketQuote>>(
+          (acc, quote) => {
+            acc[quote.symbol] = quote;
+            return acc;
+          },
+          {},
+        );
+
+        if (!ignore) {
+          setCommodityQuotes(nextQuotes);
+          setCommodityProvider(response.data?.provider ?? "fallback");
+        }
+      } catch (error) {
+        console.error("Failed to load commodity quotes", error);
+      }
+    };
+
+    void loadCommodityQuotes();
+    const timer = window.setInterval(() => void loadCommodityQuotes(), 10_000);
+    return () => {
+      ignore = true;
+      window.clearInterval(timer);
+    };
+  }, []);
 
   if (currentStrategy !== prevStrategy) {
     setPrevStrategy(currentStrategy);
@@ -81,6 +131,12 @@ export function VaultsClient() {
 
   const depositStrategy =
     safeStrategies.find((s: VaultStrategy) => s.id === depositTarget) ?? null;
+
+  const goldQuote = commodityQuotes["XAUUSD"];
+  const silverQuote = commodityQuotes["XAGUSD"];
+  const commoditySourceLabel = commodityProvider.toLowerCase().includes("six")
+    ? "SIX Verified"
+    : "Fallback";
 
   return (
     <div className="space-y-6">
@@ -235,6 +291,39 @@ export function VaultsClient() {
                               <p className="mb-4 font-body text-xs text-muted-vault">
                                 {strategy.description}
                               </p>
+
+                              {strategy.category === "commodity" && (
+                                <div className="mb-4 rounded-sm border border-vault-border bg-vault-elevated px-3 py-2.5">
+                                  <div className="mb-2 flex items-center justify-between">
+                                    <p className="font-body text-[10px] uppercase tracking-widest text-muted-vault">
+                                      Spot Market
+                                    </p>
+                                    <span className="rounded-sm border border-gold/30 bg-gold/10 px-2 py-0.5 font-body text-[10px] text-gold">
+                                      {commoditySourceLabel}
+                                    </span>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                      <p className="font-body text-[10px] uppercase tracking-widest text-muted-vault">
+                                        Gold (XAU/USD)
+                                      </p>
+                                      <p className="font-body text-sm text-text-primary">
+                                        {formatCurrency(goldQuote?.price ?? 0)}
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <p className="font-body text-[10px] uppercase tracking-widest text-muted-vault">
+                                        Silver (XAG/USD)
+                                      </p>
+                                      <p className="font-body text-sm text-text-primary">
+                                        {formatCurrency(
+                                          silverQuote?.price ?? 0,
+                                        )}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
 
                               {/* Stats row */}
                               <div className="mb-4 grid grid-cols-2 gap-4 sm:grid-cols-4">

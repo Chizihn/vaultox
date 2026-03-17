@@ -5,7 +5,16 @@ import {
 } from "@nestjs/common";
 import { SolanaService } from "../solana/solana.service";
 import { ComplianceService } from "../compliance/compliance.service";
-import { PublicKey, Transaction } from "@solana/web3.js";
+import { PublicKey } from "@solana/web3.js";
+
+export type VaultTransactionStatus = {
+  signature: string;
+  status: "submitted" | "confirmed" | "finalized" | "failed" | "unknown";
+  confirmationStatus: string;
+  slot: number | null;
+  confirmations: number | null;
+  error: unknown;
+};
 
 @Injectable()
 export class VaultsService {
@@ -217,13 +226,17 @@ export class VaultsService {
   }
 
   async withdraw(walletAddress: string, positionId: string, amount: number) {
-    // A real implementation would build a withdraw transaction using Anchor
-    const userWallet = new PublicKey(walletAddress);
-    const tx = new Transaction();
-    tx.feePayer = userWallet;
-    tx.recentBlockhash = (
-      await this.solanaService.connection.getLatestBlockhash()
-    ).blockhash;
+    const credential =
+      await this.complianceService.getCredential(walletAddress);
+    if (!credential || !credential.isActive) {
+      throw new ForbiddenException("Invalid or inactive credential");
+    }
+
+    const tx = await this.solanaService.buildWithdrawTransaction(
+      walletAddress,
+      positionId,
+      amount,
+    );
 
     const unsignedTransaction = tx
       .serialize({ requireAllSignatures: false })
@@ -234,6 +247,57 @@ export class VaultsService {
       unsignedTransaction,
       amountRequested: amount,
       status: "pending_signature",
+    };
+  }
+
+  async getTransactionStatus(
+    signature: string,
+  ): Promise<VaultTransactionStatus> {
+    const trimmedSignature = signature.trim();
+    if (!trimmedSignature) {
+      return {
+        signature: "",
+        status: "unknown",
+        confirmationStatus: "unknown",
+        slot: null,
+        confirmations: null,
+        error: "Missing signature",
+      };
+    }
+
+    const response = await this.solanaService.connection.getSignatureStatuses(
+      [trimmedSignature],
+      { searchTransactionHistory: true },
+    );
+    const value = response.value[0];
+
+    if (!value) {
+      return {
+        signature: trimmedSignature,
+        status: "unknown",
+        confirmationStatus: "unknown",
+        slot: null,
+        confirmations: null,
+        error: null,
+      };
+    }
+
+    const confirmationStatus = value.confirmationStatus ?? "processed";
+    const status = value.err
+      ? "failed"
+      : confirmationStatus === "finalized"
+        ? "finalized"
+        : confirmationStatus === "confirmed"
+          ? "confirmed"
+          : "submitted";
+
+    return {
+      signature: trimmedSignature,
+      status,
+      confirmationStatus,
+      slot: value.slot ?? null,
+      confirmations: value.confirmations ?? null,
+      error: value.err ?? null,
     };
   }
 }

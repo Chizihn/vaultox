@@ -134,8 +134,8 @@ export function LandingPage() {
             {/* VAULT<span className="text-text-primary">OX</span>*/}
             <Image
               src="/vaultox-logo.png"
-              width={100}
-              height={50}
+              width={150}
+              height={60}
               alt="Vaultox Logo"
               //  className="rounded-full"
             />

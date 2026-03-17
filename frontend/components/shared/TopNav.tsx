@@ -16,6 +16,7 @@ import { useAuthStore } from "@/store";
 import { useNotificationStore } from "@/store";
 import { useDashboard } from "@/hooks/api/useDashboard";
 import { AnimatedNumber } from "@/components/shared/AnimatedNumber";
+import Image from "next/image";
 
 export function TopNav() {
   const pathname = usePathname();
@@ -28,8 +29,15 @@ export function TopNav() {
   const { notifications, unreadCount, markAsRead, markAllAsRead } =
     useNotificationStore();
   const { metrics, isLoading } = useDashboard();
-  
-  const safeMetrics = metrics || { totalAUM: 0, aumDelta: 0, yieldToday: 0, activeSettlements: 0, pendingSettlements: 0, complianceScore: 0 };
+
+  const safeMetrics = metrics || {
+    totalAUM: 0,
+    aumDelta: 0,
+    yieldToday: 0,
+    activeSettlements: 0,
+    pendingSettlements: 0,
+    complianceScore: 0,
+  };
 
   return (
     <header className="sticky top-0 z-50 border-b border-vault-border bg-vault-surface/95 backdrop-blur-xl">
@@ -38,8 +46,15 @@ export function TopNav() {
         <div className="flex items-center gap-3 min-w-0">
           <Link href="/dashboard" className="flex items-center gap-2 shrink-0">
             <span className="font-heading text-xl font-bold text-gold tracking-tight">
-              VAULT<span className="text-text-primary">OS</span>
+              VAULT<span className="text-text-primary">OX</span>
             </span>
+            {/* <Image
+              src="/vaultox-icon.png"
+              width={70}
+              height={30}
+              alt="Vaultox Logo"
+               className="rounded-full"
+            /> */}
           </Link>
 
           {institution && (

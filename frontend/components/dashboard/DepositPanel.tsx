@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/utils/format";
 import type { VaultStrategy, ComplianceTier } from "@/types";
 import { useVaults } from "@/hooks/api/useVaults";
+import { useMarketQuotesStream } from "@/hooks/useMarketQuotesStream";
 
 interface DepositPanelProps {
   strategy: VaultStrategy | null;
@@ -29,6 +30,17 @@ export function DepositPanel({
   const annualYield = (numAmount * (strategy?.apy ?? 0)) / 100;
   const monthlyYield = annualYield / 12;
   const isCompliant = strategy ? userTier <= strategy.minTier : false;
+  const isCommodityStrategy = strategy?.category === "commodity";
+
+  const { quotes: commodityQuotes, provider: commodityProvider } =
+    useMarketQuotesStream(["XAUUSD", "XAGUSD"]);
+  const goldPrice = commodityQuotes["XAUUSD"]?.price ?? 0;
+  const silverPrice = commodityQuotes["XAGUSD"]?.price ?? 0;
+  const goldEquivalentOz = goldPrice > 0 ? numAmount / goldPrice : 0;
+  const silverEquivalentOz = silverPrice > 0 ? numAmount / silverPrice : 0;
+  const priceSourceLabel = commodityProvider.toLowerCase().includes("six")
+    ? "SIX Verified"
+    : "Fallback";
 
   const handleDeposit = async () => {
     if (!strategy || numAmount <= 0 || !isCompliant) return;
@@ -227,6 +239,49 @@ export function DepositPanel({
                           </p>
                           <p className="font-heading text-sm text-teal">
                             +{formatCurrency(annualYield, { compact: true })}
+                          </p>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {numAmount > 0 && strategy && isCommodityStrategy && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      className="rounded-sm border border-gold/20 bg-gold/5 p-4"
+                    >
+                      <div className="mb-3 flex items-center justify-between">
+                        <span className="font-heading text-xs font-semibold text-gold">
+                          Real-Time NAV Estimate
+                        </span>
+                        <span className="rounded-sm border border-gold/30 bg-gold/10 px-2 py-0.5 font-body text-[10px] text-gold">
+                          {priceSourceLabel}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <p className="font-body text-[10px] uppercase tracking-widest text-muted-vault">
+                            Gold Spot
+                          </p>
+                          <p className="font-heading text-sm text-text-primary">
+                            {formatCurrency(goldPrice)}
+                          </p>
+                          <p className="mt-1 font-body text-[11px] text-gold">
+                            ≈ {goldEquivalentOz.toFixed(4)} oz
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="font-body text-[10px] uppercase tracking-widest text-muted-vault">
+                            Silver Spot
+                          </p>
+                          <p className="font-heading text-sm text-text-primary">
+                            {formatCurrency(silverPrice)}
+                          </p>
+                          <p className="mt-1 font-body text-[11px] text-gold">
+                            ≈ {silverEquivalentOz.toFixed(4)} oz
                           </p>
                         </div>
                       </div>
