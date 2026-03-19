@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
+import Link from "next/link";
 import {
   CheckCircle,
   Download,
@@ -22,6 +23,7 @@ import { ComplianceRadar } from "@/components/dashboard/ComplianceRadar";
 import { TierBadge } from "@/components/shared/TierBadge";
 import { AuditBadge, StatusBadge } from "@/components/shared/StatusBadge";
 import { ComplianceRing } from "@/components/dashboard/ComplianceRing";
+import { Tooltip } from "@/components/shared/Tooltip";
 
 export function ComplianceClient() {
   const { tier, credentialStatus } = useAuthStore();
@@ -80,7 +82,15 @@ export function ComplianceClient() {
             On-chain Vault Passport · Audit trails · Regulatory reporting
           </p>
         </div>
-        {tier && <TierBadge tier={tier} size="md" />}
+        <div className="flex items-center gap-2">
+          <Link
+            href="/compliance/admin"
+            className="rounded-sm border border-vault-border px-3 py-2 font-heading text-xs text-muted-vault transition-colors hover:border-gold/30 hover:text-gold"
+          >
+            Admin Queue
+          </Link>
+          {tier && <TierBadge tier={tier} size="md" />}
+        </div>
       </motion.div>
 
       {/* ── Institution Credential card ── */}
@@ -116,7 +126,12 @@ export function ComplianceClient() {
               {/* Institution details */}
               <div className="grid grid-cols-2 gap-4">
                 {[
-                  { label: "Institution", value: "AMINA Bank AG" },
+                  {
+                    label: "Institution",
+                    value:
+                      (credential as { institutionName?: string })
+                        .institutionName ?? "Unknown Institution",
+                  },
                   {
                     label: "Jurisdiction",
                     value: `${credential.jurisdiction} ${credential.jurisdictionFlag}`,
@@ -140,9 +155,11 @@ export function ComplianceClient() {
                     Credential Address
                   </p>
                   <div className="flex items-center gap-2">
-                    <span className="font-code text-xs text-muted-vault">
-                      {formatAddress(credential.credentialAddress, 8)}
-                    </span>
+                    <Tooltip content="Your unique Vault Passport ID on the Solana blockchain (Program Derived Address).">
+                      <span className="font-code text-xs text-muted-vault cursor-help">
+                        {formatAddress(credential.credentialAddress, 8)}
+                      </span>
+                    </Tooltip>
                     <a
                       href={`https://explorer.solana.com/address/${credential.credentialAddress}?cluster=devnet`}
                       target="_blank"
@@ -166,11 +183,15 @@ export function ComplianceClient() {
                 <p className="font-heading text-sm font-semibold text-text-primary">
                   Compliance Dimensions
                 </p>
-                <ComplianceRing
-                  score={overallScore}
-                  size={52}
-                  strokeWidth={4}
-                />
+                <Tooltip content="Weighted average of all compliance risk factors. 100 is the best possible score.">
+                  <div className="cursor-help">
+                    <ComplianceRing
+                      score={overallScore}
+                      size={52}
+                      strokeWidth={4}
+                    />
+                  </div>
+                </Tooltip>
               </div>
               <ComplianceRadar scores={credential.complianceScores} />
 
@@ -214,9 +235,11 @@ export function ComplianceClient() {
           >
             <div className="mb-4 flex items-center gap-2">
               <Shield className="size-4 text-gold" />
-              <h2 className="font-heading text-sm font-semibold text-text-primary">
-                Encoded Permissions
-              </h2>
+              <Tooltip content="Capabilities granted to your institution based on your verified compliance tier.">
+                <h2 className="font-heading text-sm font-semibold text-text-primary cursor-help">
+                  Encoded Permissions
+                </h2>
+              </Tooltip>
             </div>
             <ul className="space-y-3">
               {credential.permissions.map((p: Permission) => (
@@ -281,14 +304,10 @@ export function ComplianceClient() {
               </div>
 
               <button
-                className="mt-2 w-full rounded-sm border border-teal/30 py-2 font-heading text-xs text-teal transition-colors hover:bg-teal/10"
-                onClick={() => {
-                  // Real: trigger Fireblocks re-verification
-                  // await fetch('/compliance/verify', { method: 'POST' });
-                  alert("Re-verification request sent (simulated)");
-                }}
+                disabled
+                className="mt-2 w-full cursor-not-allowed rounded-sm border border-vault-border py-2 font-heading text-xs text-muted-vault opacity-60"
               >
-                Re-verify with Fireblocks
+                Re-verify (endpoint pending)
               </button>
             </div>
           </motion.div>
@@ -325,8 +344,8 @@ export function ComplianceClient() {
               </select>
 
               <button
-                className="flex items-center gap-1.5 rounded-sm border border-vault-border px-2.5 py-1.5 font-body text-xs text-muted-vault transition-colors hover:border-gold/30 hover:text-gold"
-                onClick={() => alert("CSV export simulated")}
+                disabled
+                className="flex cursor-not-allowed items-center gap-1.5 rounded-sm border border-vault-border px-2.5 py-1.5 font-body text-xs text-muted-vault opacity-60"
               >
                 <Download className="size-3" />
                 Export CSV

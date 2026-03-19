@@ -16,10 +16,34 @@ import {
 import { getSolanaConfig } from "../config/solana.config";
 import * as bs58 from "bs58";
 import { createHash } from "crypto";
+import * as fs from "node:fs";
+import * as path from "node:path";
 
 const FALLBACK_PROGRAM_ID = "5iRF8NUVhQuTGNd4Thndc4LA3PGShfgmKvWX4C25JAuG";
 const MAX_U64 = (1n << 64n) - 1n;
-const vaultoxIdl = require("./idl/vaultox.json") as Record<string, unknown>;
+
+function loadVaultoxIdl(): Record<string, unknown> {
+  const candidates = [
+    path.resolve(process.cwd(), "src/solana/idl/vaultox.json"),
+    path.resolve(process.cwd(), "dist/src/solana/idl/vaultox.json"),
+    path.resolve(__dirname, "idl/vaultox.json"),
+  ];
+
+  for (const candidate of candidates) {
+    if (!fs.existsSync(candidate)) {
+      continue;
+    }
+
+    const raw = fs.readFileSync(candidate, "utf8");
+    return JSON.parse(raw) as Record<string, unknown>;
+  }
+
+  throw new Error(
+    "VaultOX IDL not found. Expected at src/solana/idl/vaultox.json or dist/src/solana/idl/vaultox.json",
+  );
+}
+
+const vaultoxIdl = loadVaultoxIdl();
 
 function toSnakeCase(value: string): string {
   return value
@@ -606,15 +630,170 @@ export class SolanaService {
       const account = await this.accounts.complianceCredential.fetch(pda);
       return account;
     } catch {
-      if (process.env.DEMO_MODE === "true") {
-        this.logger.debug(
-          `Credential not found for ${walletAddress} (demo mode fallback active)`,
-        );
-      } else {
-        this.logger.warn(`Credential not found for ${walletAddress}`);
-      }
+      this.logger.warn(`Credential not found for ${walletAddress}`);
       return null;
     }
+  }
+
+  async issueOrRenewComplianceCredential(input: {
+    walletAddress: string;
+    institutionName: string;
+    jurisdiction: string;
+    tier: 1 | 2 | 3;
+    kycLevel?: number;
+    amlCoverage?: number;
+    validityDays?: number;
+    attestationHash?: string;
+  }): Promise<{
+    txHash: string;
+    credentialAddress: string;
+    action: "issued" | "renewed";
+  }> {
+    const institutionWallet = new PublicKey(input.walletAddress);
+    const credential = this.getCredentialPda(input.walletAddress);
+    const validityDays = Math.max(1, Math.min(3650, input.validityDays ?? 365));
+    const expiresAtUnix =
+      Math.floor(Date.now() / 1000) + validityDays * 24 * 60 * 60;
+
+    const tier = Math.max(1, Math.min(3, input.tier)) as 1 | 2 | 3;
+    const kycLevel = Math.max(1, Math.min(3, input.kycLevel ?? tier));
+    const amlCoverage = Math.max(0, Math.min(100, input.amlCoverage ?? 90));
+    const jurisdictionCode = this.toJurisdictionCode(input.jurisdiction);
+    const attestationHash = this.toHash32Bytes(
+      input.attestationHash ??
+        `${input.walletAddress}:${input.institutionName}:${expiresAtUnix}`,
+    );
+
+    const credentialParams = {
+      institutionName: this.toFixedUtf8Bytes(input.institutionName, 64),
+      jurisdiction: this.toFixedUtf8Bytes(jurisdictionCode, 4),
+      tier,
+      kycLevel,
+      amlCoverage,
+      expiresAt: new BN(expiresAtUnix.toString()),
+      attestationHash,
+    };
+
+    let credentialExists = false;
+    try {
+      await this.accounts.complianceCredential.fetch(credential);
+      credentialExists = true;
+    } catch {
+      credentialExists = false;
+    }
+
+    if (!credentialExists) {
+      const txHash = await (this.program as any).methods
+        .issueCredential(credentialParams)
+        .accounts({
+          institutionWallet,
+          credential,
+          authority: this.backendWallet.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
+      return {
+        txHash,
+        credentialAddress: credential.toBase58(),
+        action: "issued",
+      };
+    }
+
+    const txHash = await (this.program as any).methods
+      .renewCredential(new BN(expiresAtUnix.toString()), attestationHash)
+      .accounts({
+        credential,
+        authority: this.backendWallet.publicKey,
+      })
+      .rpc();
+
+    return {
+      txHash,
+      credentialAddress: credential.toBase58(),
+      action: "renewed",
+    };
+  }
+
+  private toJurisdictionCode(jurisdiction: string): string {
+    const value = jurisdiction.trim().toUpperCase();
+    const aliases: Record<string, string> = {
+      SWITZERLAND: "CH",
+      SINGAPORE: "SG",
+      GERMANY: "DE",
+      "UNITED STATES": "US",
+      "UNITED ARAB EMIRATES": "AE",
+      UAE: "AE",
+      UK: "GB",
+      "UNITED KINGDOM": "GB",
+    };
+
+    if (aliases[value]) {
+      return aliases[value];
+    }
+
+    if (/^[A-Z]{2,4}$/.test(value)) {
+      return value.slice(0, 4);
+    }
+
+    return value
+      .replace(/[^A-Z]/g, "")
+      .slice(0, 4)
+      .padEnd(2, "X");
+  }
+
+  async initializeVaultStrategy(input: {
+    name: string;
+    apyBps: number;
+    minDeposit: string | number;
+    maxCapacity: string | number;
+    riskTier: number;
+    lockupDays: number;
+  }): Promise<{
+    txHash: string;
+    strategyAddress: string;
+    vaultTokenAccount: string;
+  }> {
+    const strategyId = Array.from(
+      createHash("sha256").update(input.name).digest().subarray(0, 32),
+    );
+
+    const [strategy] = PublicKey.findProgramAddressSync(
+      [Buffer.from("strategy"), Buffer.from(strategyId)],
+      this.program.programId,
+    );
+
+    const vaultTokenAccount = getAssociatedTokenAddressSync(
+      this.usdcMint,
+      strategy,
+      true, // allowOwnerOffCurve = true for PDA
+    );
+
+    const params = {
+      id: strategyId,
+      name: this.toFixedUtf8Bytes(input.name, 64),
+      apyBps: input.apyBps,
+      minDeposit: this.parseU64(input.minDeposit, "min deposit", true),
+      maxCapacity: this.parseU64(input.maxCapacity, "max capacity"),
+      riskTier: input.riskTier,
+      lockupDays: input.lockupDays,
+    };
+
+    const txHash = await (this.program as any).methods
+      .initializeStrategy(params)
+      .accounts({
+        strategy,
+        vaultTokenAccount,
+        authority: this.backendWallet.publicKey,
+        systemProgram: SystemProgram.programId,
+      })
+      .rpc();
+
+    return {
+      txHash,
+      strategyAddress: strategy.toBase58(),
+      vaultTokenAccount: vaultTokenAccount.toBase58(),
+    };
   }
 
   async getVaultStrategy(

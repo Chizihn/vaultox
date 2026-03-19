@@ -8,6 +8,7 @@ import { formatCurrency } from "@/utils/format";
 import type { VaultStrategy, ComplianceTier } from "@/types";
 import { useVaults } from "@/hooks/api/useVaults";
 import { useMarketQuotesStream } from "@/hooks/useMarketQuotesStream";
+import { Tooltip } from "@/components/shared/Tooltip";
 
 interface DepositPanelProps {
   strategy: VaultStrategy | null;
@@ -34,13 +35,13 @@ export function DepositPanel({
 
   const { quotes: commodityQuotes, provider: commodityProvider } =
     useMarketQuotesStream(["XAUUSD", "XAGUSD"]);
-  const goldPrice = commodityQuotes["XAUUSD"]?.price ?? 0;
-  const silverPrice = commodityQuotes["XAGUSD"]?.price ?? 0;
+  const goldPrice = commodityQuotes["XAUUSD"]?.price;
+  const silverPrice = commodityQuotes["XAGUSD"]?.price;
   const goldEquivalentOz = goldPrice > 0 ? numAmount / goldPrice : 0;
   const silverEquivalentOz = silverPrice > 0 ? numAmount / silverPrice : 0;
   const priceSourceLabel = commodityProvider.toLowerCase().includes("six")
     ? "SIX Verified"
-    : "Fallback";
+    : "Unavailable";
 
   const handleDeposit = async () => {
     if (!strategy || numAmount <= 0 || !isCompliant) return;
@@ -229,17 +230,21 @@ export function DepositPanel({
                           <p className="font-body text-[10px] uppercase tracking-widest text-muted-vault">
                             Monthly
                           </p>
-                          <p className="font-heading text-sm text-teal">
-                            +{formatCurrency(monthlyYield)}
-                          </p>
+                          <Tooltip content="Average monthly earnings projected from the current strategy yield.">
+                            <p className="font-heading text-sm text-teal cursor-help">
+                              +{formatCurrency(monthlyYield)}
+                            </p>
+                          </Tooltip>
                         </div>
                         <div>
                           <p className="font-body text-[10px] uppercase tracking-widest text-muted-vault">
                             Annual
                           </p>
-                          <p className="font-heading text-sm text-teal">
-                            +{formatCurrency(annualYield, { compact: true })}
-                          </p>
+                          <Tooltip content="Total projected earnings over a 12-month period based on current APY.">
+                            <p className="font-heading text-sm text-teal cursor-help">
+                              +{formatCurrency(annualYield, { compact: true })}
+                            </p>
+                          </Tooltip>
                         </div>
                       </div>
                     </motion.div>
@@ -252,9 +257,11 @@ export function DepositPanel({
                       className="rounded-sm border border-gold/20 bg-gold/5 p-4"
                     >
                       <div className="mb-3 flex items-center justify-between">
-                        <span className="font-heading text-xs font-semibold text-gold">
-                          Real-Time NAV Estimate
-                        </span>
+                        <Tooltip content="The current Net Asset Value of the base commodities, verified by SIX Institutional Data.">
+                          <span className="font-heading text-xs font-semibold text-gold cursor-help">
+                            Real-Time NAV Estimate
+                          </span>
+                        </Tooltip>
                         <span className="rounded-sm border border-gold/30 bg-gold/10 px-2 py-0.5 font-body text-[10px] text-gold">
                           {priceSourceLabel}
                         </span>
@@ -266,11 +273,13 @@ export function DepositPanel({
                             Gold Spot
                           </p>
                           <p className="font-heading text-sm text-text-primary">
-                            {formatCurrency(goldPrice)}
+                            {goldPrice ? formatCurrency(goldPrice) : "N/A"}
                           </p>
-                          <p className="mt-1 font-body text-[11px] text-gold">
-                            ≈ {goldEquivalentOz.toFixed(4)} oz
-                          </p>
+                          {goldPrice && (
+                            <p className="mt-1 font-body text-[11px] text-gold">
+                              ≈ {goldEquivalentOz.toFixed(4)} oz
+                            </p>
+                          )}
                         </div>
 
                         <div>
@@ -278,11 +287,13 @@ export function DepositPanel({
                             Silver Spot
                           </p>
                           <p className="font-heading text-sm text-text-primary">
-                            {formatCurrency(silverPrice)}
+                            {silverPrice ? formatCurrency(silverPrice) : "N/A"}
                           </p>
-                          <p className="mt-1 font-body text-[11px] text-gold">
-                            ≈ {silverEquivalentOz.toFixed(4)} oz
-                          </p>
+                          {silverPrice && (
+                            <p className="mt-1 font-body text-[11px] text-gold">
+                              ≈ {silverEquivalentOz.toFixed(4)} oz
+                            </p>
+                          )}
                         </div>
                       </div>
                     </motion.div>
@@ -330,7 +341,7 @@ export function DepositPanel({
                     {isCompliant ? `Confirm Deposit` : "Compliance Required"}
                   </button>
                   <p className="mt-2 text-center font-body text-[10px] text-muted-vault">
-                    Transactions are simulated on devnet
+                    Transactions execute on Solana devnet
                   </p>
                 </div>
               </div>

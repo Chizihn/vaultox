@@ -9,6 +9,7 @@ const protectedPrefixes = [
   "/settlements",
   "/reports",
   "/compliance",
+  "/admin",
 ];
 
 export function middleware(request: NextRequest) {
@@ -36,6 +37,11 @@ export function middleware(request: NextRequest) {
   }
 
   if (isProtected && token && status !== "verified") {
+    // Exempt /admin and /access-pending from the verified check
+    if (pathname === "/admin" || pathname.startsWith("/admin/")) {
+      return NextResponse.next();
+    }
+
     const pendingUrl = new URL("/access-pending", request.url);
     pendingUrl.searchParams.set("status", status ?? "unregistered");
     return NextResponse.redirect(pendingUrl);
@@ -70,6 +76,7 @@ export const config = {
     "/settlements/:path*",
     "/reports/:path*",
     "/compliance/:path*",
+    "/admin/:path*",
     "/access-pending/:path*",
   ],
 };

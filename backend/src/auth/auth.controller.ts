@@ -6,11 +6,15 @@ import {
   Get,
   Param,
   Delete,
+  UseGuards,
 } from "@nestjs/common";
 import { AuthService } from "./auth.service";
 import { ChallengeDto } from "./dto/challenge.dto";
 import { VerifySignatureDto } from "./dto/verify-signature.dto";
+import { VerifyEntraAdapterDto } from "./dto/verify-entra-adapter.dto";
+import { RevokeEntraBindingDto } from "./dto/entra-binding.dto";
 import { ApiTags, ApiOperation, ApiResponse } from "@nestjs/swagger";
+import { AdminApiKeyGuard } from "../common/guards/admin-api-key.guard";
 
 @ApiTags("auth")
 @Controller("auth")
@@ -54,6 +58,36 @@ export class AuthController {
     );
   }
 
+  @Post("verify-entra-adapter")
+  @HttpCode(200)
+  @ApiOperation({
+    summary:
+      "Validate Entra token via JWKS signature verification and claim checks",
+  })
+  verifyEntraAdapter(@Body() dto: VerifyEntraAdapterDto) {
+    return this.authService.verifyEntraAdapter(
+      dto.token,
+      dto.requestedWalletAddress,
+    );
+  }
+
+  @Get("entra-binding/status/:subjectId/:walletAddress")
+  @UseGuards(AdminApiKeyGuard)
+  @HttpCode(200)
+  getEntraBindingStatus(
+    @Param("subjectId") subjectId: string,
+    @Param("walletAddress") walletAddress: string,
+  ) {
+    return this.authService.getEntraBindingStatus(subjectId, walletAddress);
+  }
+
+  @Post("entra-binding/revoke")
+  @UseGuards(AdminApiKeyGuard)
+  @HttpCode(200)
+  revokeEntraBinding(@Body() dto: RevokeEntraBindingDto) {
+    return this.authService.revokeEntraBinding(dto);
+  }
+
   @Post("request-access")
   requestAccess(@Body() body: any) {
     return this.authService.requestAccess(body);
@@ -65,13 +99,14 @@ export class AuthController {
     return this.authService.getRequestAccessStatus(wallet);
   }
 
-  @Post("demo/grant-access")
+  @Post("approve-access")
   @HttpCode(200)
+  @UseGuards(AdminApiKeyGuard)
   @ApiOperation({
-    summary: "DEMO ONLY: Grant instant access to a wallet for testing",
+    summary: "Approve KYC request and issue/renew on-chain credential",
   })
-  demoGrantAccess(@Body() body: { walletAddress: string }) {
-    return this.authService.demoGrantAccess(body.walletAddress);
+  approveAccess(@Body() body: any) {
+    return this.authService.approveAccess(body.walletAddress, body);
   }
 
   @Delete("session")

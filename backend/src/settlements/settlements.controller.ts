@@ -67,6 +67,28 @@ export class SettlementsController {
     return this.settlementsService.initiateSettlement(wallet, body);
   }
 
+  @Post(":id/submitted")
+  @UseGuards(JwtAuthGuard, ActiveCredentialGuard)
+  @ApiBearerAuth()
+  submitSettlementSignature(
+    @WalletAddress() wallet: string,
+    @Param("id") id: string,
+    @Body() body: { signature?: string },
+  ) {
+    return this.settlementsService.submitSettlementSignature(
+      wallet,
+      id,
+      body.signature ?? "",
+    );
+  }
+
+  @Get("transactions/status")
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  getTransactionStatus(@Query("signature") signature?: string) {
+    return this.settlementsService.getTransactionStatus(signature ?? "");
+  }
+
   @Post("travel-rule/validate")
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
@@ -77,8 +99,16 @@ export class SettlementsController {
   @Post(":id/confirm")
   @UseGuards(JwtAuthGuard, ActiveCredentialGuard)
   @ApiBearerAuth()
-  confirmSettlement(@WalletAddress() wallet: string, @Param("id") id: string) {
-    return this.settlementsService.confirmSettlement(wallet, id);
+  confirmSettlement(
+    @WalletAddress() wallet: string,
+    @Param("id") id: string,
+    @Body() body: { signature?: string },
+  ) {
+    return this.settlementsService.confirmSettlement(
+      wallet,
+      id,
+      body?.signature,
+    );
   }
 
   @Post(":id/cancel")

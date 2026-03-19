@@ -9,6 +9,7 @@ import {
 } from "@nestjs/common";
 import { VaultsService } from "./vaults.service";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
+import { AdminApiKeyGuard } from "../common/guards/admin-api-key.guard";
 import { ActiveCredentialGuard } from "../common/guards/active-credential.guard";
 import { WalletAddress } from "../common/decorators/wallet.decorator";
 import { ApiTags, ApiBearerAuth, ApiOperation } from "@nestjs/swagger";
@@ -23,6 +24,14 @@ export class VaultsController {
   @ApiBearerAuth()
   getStrategies(@WalletAddress() wallet: string) {
     return this.vaultsService.getStrategies(wallet);
+  }
+
+  @Post("strategies")
+  @UseGuards(JwtAuthGuard, AdminApiKeyGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Admin only: Create a new yield strategy" })
+  createStrategy(@Body() body: any) {
+    return this.vaultsService.createStrategy(body);
   }
 
   @Get("strategies/:id")

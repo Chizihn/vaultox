@@ -7,12 +7,12 @@ import {
   CheckCircle,
   AlertTriangle,
   Filter,
-  Download,
   ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatDate } from "@/utils/format";
 import type { Institution, Settlement, SettlementArc } from "@/types";
+import { Tooltip } from "@/components/shared/Tooltip";
 import { useAuthStore } from "@/store";
 import { useSettlements } from "@/hooks/api/useSettlements";
 import { WorldMap } from "@/components/dashboard/WorldMap";
@@ -21,6 +21,7 @@ import { SettlementBadge } from "@/components/shared/StatusBadge";
 import { useSettlementProgress } from "@/hooks/useSettlementProgress";
 import { useMarketQuotesStream } from "@/hooks/useMarketQuotesStream";
 import api from "@/services/api";
+import { getCounterparties } from "@/services/compliance";
 
 type SettlementCalendarStatus = {
   jurisdiction: string;
@@ -39,6 +40,7 @@ const FX_SYMBOL_BY_JURISDICTION: Record<string, string> = {
 
 export function SettlementsClient() {
   const { institution } = useAuthStore();
+  const [networkDirectory, setNetworkDirectory] = useState<Institution[]>([]);
   const [liveArcs, setLiveArcs] = useState<SettlementArc[]>([]);
   const [calendarStatus, setCalendarStatus] =
     useState<SettlementCalendarStatus | null>(null);
@@ -54,49 +56,41 @@ export function SettlementsClient() {
     "USDAED",
   ]);
 
-  // Network Directory Fallback
-  const networkDirectory: Institution[] = [
-    {
-      id: "inst-002",
-      name: "DBS Institutional",
-      jurisdiction: "Singapore",
-      jurisdictionFlag: "🇸🇬",
-      tier: 1,
-      city: "Singapore",
-      walletAddress: "7Kx2nPz8Wp5RuXmL9tSg3McEiO7hBd4kNr",
-    },
-    {
-      id: "inst-003",
-      name: "Deutsche Digital Assets",
-      jurisdiction: "Germany",
-      jurisdictionFlag: "🇩🇪",
-      tier: 2,
-      city: "Frankfurt",
-      walletAddress: "4Jw9mNy6Tp3QsVkH8rUf5LbDgA2iCe7jXp",
-    },
-    {
-      id: "inst-004",
-      name: "Emirates NBD Digital",
-      jurisdiction: "UAE",
-      jurisdictionFlag: "🇦🇪",
-      tier: 2,
-      city: "Dubai",
-      walletAddress: "9Fx5lKw3Sn8PtYhG7qRe4MaDfC1jBg6iWo",
-    },
-    {
-      id: "inst-005",
-      name: "JPM Onyx Settlement",
-      jurisdiction: "United States",
-      jurisdictionFlag: "🇺🇸",
-      tier: 1,
-      city: "New York",
-      walletAddress: "2Hw6oLx4Um9QvZiJ8sTg5NbEhD3kCf7lYq",
-    },
-  ];
   const { settlements: fetchedSettlements, initiateSettlement } =
     useSettlements();
   const { steps, isRunning, isComplete, totalTime, startSettlement, reset } =
     useSettlementProgress();
+
+  useEffect(() => {
+    let ignore = false;
+
+    const loadCounterparties = async () => {
+      try {
+        const counterparties = await getCounterparties();
+        if (ignore) return;
+
+        setNetworkDirectory(
+          counterparties.map((entry) => ({
+            id: entry.wallet,
+            name: entry.institution_name,
+            jurisdiction: entry.jurisdiction,
+            jurisdictionFlag: entry.jurisdictionFlag,
+            tier: entry.tier,
+            city: "Unknown",
+            walletAddress: entry.wallet,
+          })),
+        );
+      } catch (error) {
+        console.error("Failed to load counterparties", error);
+      }
+    };
+
+    void loadCounterparties();
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   useEffect(() => {
     let ignore = false;
@@ -146,25 +140,24 @@ export function SettlementsClient() {
     };
   }, [toInstitution?.jurisdiction]);
 
-  const fromInst = institution ?? networkDirectory[0];
+  const fromInst = institution;
   const numAmount = parseFloat(amount.replace(/,/g, "")) || 0;
 
   const fxSymbol = toInstitution
     ? (FX_SYMBOL_BY_JURISDICTION[toInstitution.jurisdiction] ?? "EURUSD")
     : "EURUSD";
   const selectedQuote = quoteMap[fxSymbol];
-  const fxRate = selectedQuote?.price ?? 1;
+  const fxRate = selectedQuote?.price;
   const isSixVerified =
     Boolean(selectedQuote?.source?.toLowerCase().includes("six")) ||
     quoteProvider.toLowerCase().includes("six");
 
   const handleInitiate = async () => {
     if (!fromInst || !toInstitution || numAmount <= 0) return;
-    setShowModal(true);
-    await startSettlement();
-
+    
     try {
-      await initiateSettlement({
+      // First initiate the transaction to get a signature
+      const result = await initiateSettlement({
         receiver: {
           walletAddress: toInstitution.walletAddress,
           institutionName: toInstitution.name,
@@ -182,6 +175,11 @@ export function SettlementsClient() {
           purposeCode: "INTC",
         },
       });
+
+      // Show the progress modal and start tracking with the real signature
+      setShowModal(true);
+      // 'result' contains the signature return from the mutation
+      await startSettlement(result?.signature);
     } catch (e) {
       console.error("Failed to initiate settlement", e);
     }
@@ -215,7 +213,7 @@ export function SettlementsClient() {
     );
 
   const otherInstitutions = networkDirectory.filter(
-    (i) => i.id !== fromInst?.id,
+    (entry) => entry.walletAddress !== fromInst?.walletAddress,
   );
 
   return (
@@ -268,18 +266,20 @@ export function SettlementsClient() {
                 <label className="mb-1.5 block font-body text-[10px] uppercase tracking-widest text-muted-vault">
                   From Institution
                 </label>
-                <div className="flex items-center gap-3 rounded-sm border border-vault-border bg-vault-elevated px-4 py-3">
-                  <span className="text-xl">{fromInst?.jurisdictionFlag}</span>
-                  <div>
-                    <p className="font-heading text-sm text-text-primary">
-                      {fromInst?.name}
-                    </p>
-                    <p className="font-body text-[11px] text-muted-vault">
-                      {fromInst?.city}
-                    </p>
-                  </div>
-                  <CheckCircle className="ml-auto size-4 text-ok" />
-                </div>
+                  <Tooltip content="Your institutional profile and verified jurisdiction." position="right">
+                    <div className="flex items-center gap-3 rounded-sm border border-vault-border bg-vault-elevated px-4 py-3 cursor-help">
+                      <span className="text-xl">{fromInst?.jurisdictionFlag}</span>
+                      <div>
+                        <p className="font-heading text-sm text-text-primary">
+                          {fromInst?.name}
+                        </p>
+                        <p className="font-body text-[11px] text-muted-vault">
+                          {fromInst?.city}
+                        </p>
+                      </div>
+                      <CheckCircle className="ml-auto size-4 text-ok" />
+                    </div>
+                  </Tooltip>
               </div>
 
               {/* Arrow */}
@@ -327,22 +327,24 @@ export function SettlementsClient() {
                 >
                   Amount USDC
                 </label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 font-body text-sm text-muted-vault">
-                    $
-                  </span>
-                  <input
-                    id="transfer-amount"
-                    type="text"
-                    value={amount}
-                    onChange={(e) => handleAmountChange(e.target.value)}
-                    placeholder="500,000"
-                    className="w-full rounded-sm border border-vault-border bg-vault-elevated py-3 pl-8 pr-16 font-body text-lg text-text-primary placeholder:text-muted-vault/40 focus:border-gold/40 focus:outline-none"
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 font-body text-xs text-muted-vault">
-                    USDC
-                  </span>
-                </div>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 font-body text-sm text-muted-vault">
+                      $
+                    </span>
+                    <Tooltip content="The total USDC amount to be transferred to the recipient." className="w-full">
+                      <input
+                        id="transfer-amount"
+                        type="text"
+                        value={amount}
+                        onChange={(e) => handleAmountChange(e.target.value)}
+                        placeholder="500,000"
+                        className="w-full rounded-sm border border-vault-border bg-vault-elevated py-3 pl-8 pr-16 font-body text-lg text-text-primary placeholder:text-muted-vault/40 focus:border-gold/40 focus:outline-none"
+                      />
+                    </Tooltip>
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 font-body text-xs text-muted-vault">
+                      USDC
+                    </span>
+                  </div>
               </div>
 
               {/* FX + estimate */}
@@ -355,7 +357,7 @@ export function SettlementsClient() {
                   <div className="flex items-center justify-between font-body text-xs">
                     <span className="text-muted-vault">FX Rate</span>
                     <span className="text-text-primary">
-                      1 USDC = {fxRate}{" "}
+                      1 USDC = {fxRate ? fxRate : "N/A"}{" "}
                       {toInstitution.jurisdiction === "Switzerland"
                         ? "CHF"
                         : toInstitution.jurisdiction === "Singapore"
@@ -365,12 +367,12 @@ export function SettlementsClient() {
                                 "United Arab Emirates"
                             ? "AED"
                             : "USD"}{" "}
-                      · {isSixVerified ? "SIX Verified" : "Fallback"}
+                      · {isSixVerified ? "SIX Verified" : "Unavailable"}
                     </span>
                   </div>
                   <div className="flex items-center justify-between font-body text-xs">
                     <span className="text-muted-vault">Est. Settlement</span>
-                    <span className="text-teal">~1.8 seconds</span>
+                    <span className="text-teal">Network-dependent</span>
                   </div>
                 </motion.div>
               )}
@@ -400,8 +402,8 @@ export function SettlementsClient() {
                   {[
                     { label: `Sender Verified: ${fromInst.name}`, ok: true },
                     {
-                      label: `Recipient Verified: ${toInstitution.name}`,
-                      ok: toInstitution.tier <= 2,
+                      label: `Recipient Listed in Verified Directory: ${toInstitution.name}`,
+                      ok: true,
                     },
                   ].map(({ label, ok }) => (
                     <div key={label} className="flex items-center gap-2">
@@ -529,9 +531,11 @@ export function SettlementsClient() {
                         </span>
                       </div>
                     </td>
-                    <td className="px-5 py-3 font-heading text-xs text-text-primary">
-                      {formatCurrency(s.amount, { compact: true })} {s.currency}
-                    </td>
+                    <Tooltip content="Funds are atomically swapped or transferred via the settlement engine." position="right">
+                      <td className="px-5 py-3 font-heading text-xs text-text-primary cursor-help">
+                        {formatCurrency(s.amount, { compact: true })} {s.currency}
+                      </td>
+                    </Tooltip>
                     <td className="px-5 py-3">
                       <SettlementBadge status={s.status} />
                     </td>
@@ -544,14 +548,6 @@ export function SettlementsClient() {
                     </td>
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100">
-                        <button
-                          className="rounded-sm border border-vault-border p-1.5 text-muted-vault transition-colors hover:border-gold/30 hover:text-gold"
-                          aria-label="Download report"
-                          title="Download FINMA report"
-                          onClick={() => alert("Report download simulated")}
-                        >
-                          <Download className="size-3" />
-                        </button>
                         <a
                           href={`https://explorer.solana.com/tx/${s.txHash}?cluster=devnet`}
                           target="_blank"

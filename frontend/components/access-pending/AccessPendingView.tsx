@@ -678,28 +678,6 @@ function RequestAccessView({
                 </div>
               ))}
             </div>
-            {/* DEMO ONLY: Grant immediate access for testing/demo recordings */}
-            {process.env.NEXT_PUBLIC_DEMO_MODE === "true" && (
-              <button
-                onClick={async () => {
-                  try {
-                    await api.post("/auth/demo/grant-access", {
-                      walletAddress,
-                    });
-                    // Refresh auth state by clearing and re-authenticating
-                    alert(
-                      "✓ Demo access granted! Please reconnect your wallet to login.",
-                    );
-                    onDisconnect();
-                  } catch (error) {
-                    alert(`Error granting demo access: ${error}`);
-                  }
-                }}
-                className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-sm bg-vault-highlight/20 border border-vault-highlight text-vault-highlight font-body text-xs hover:bg-vault-highlight/30 transition-colors"
-              >
-                <span>Demo: Grant Access</span>
-              </button>
-            )}
             <button
               onClick={onDisconnect}
               className="flex items-center gap-1.5 font-body text-xs text-muted-vault underline-offset-2 hover:underline"

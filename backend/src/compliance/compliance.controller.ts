@@ -6,11 +6,13 @@ import {
   Param,
   UseGuards,
   Query,
+  Headers,
 } from "@nestjs/common";
 import { ComplianceService } from "./compliance.service";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { WalletAddress } from "../common/decorators/wallet.decorator";
 import { ApiTags, ApiBearerAuth } from "@nestjs/swagger";
+import { AdminApiKeyGuard } from "../common/guards/admin-api-key.guard";
 
 @ApiTags("compliance")
 @Controller("compliance")
@@ -37,6 +39,60 @@ export class ComplianceController {
   requestAccess(@Body() body: any) {
     // Assuming body has walletAddress
     return this.complianceService.submitKycRequest(body.walletAddress, body);
+  }
+
+  @Post("credential/approve")
+  @UseGuards(AdminApiKeyGuard)
+  approveCredential(
+    @Body() body: any,
+    @Headers("x-admin-override-key") overrideApprovalKey?: string,
+  ) {
+    return this.complianceService.approveKycRequest(body.walletAddress, {
+      reviewerNotes: body.reviewerNotes,
+      tier: body.tier,
+      kycLevel: body.kycLevel,
+      amlCoverage: body.amlCoverage,
+      validityDays: body.validityDays,
+      attestationHash: body.attestationHash,
+      overrideApprovalKey,
+    });
+  }
+
+  @Post("credential/resync")
+  @UseGuards(AdminApiKeyGuard)
+  resyncCredential(@Body() body: any) {
+    return this.complianceService.resyncApprovedCredential(body.walletAddress, {
+      reviewerNotes: body.reviewerNotes,
+      tier: body.tier,
+      kycLevel: body.kycLevel,
+      amlCoverage: body.amlCoverage,
+      validityDays: body.validityDays,
+      attestationHash: body.attestationHash,
+    });
+  }
+
+  @Post("credential/reject")
+  @UseGuards(AdminApiKeyGuard)
+  rejectCredential(@Body() body: any) {
+    return this.complianceService.rejectKycRequest(
+      body.walletAddress,
+      body.reviewerNotes,
+    );
+  }
+
+  @Get("admin/kyc-requests")
+  @UseGuards(AdminApiKeyGuard)
+  listKycRequests(
+    @Query("status")
+    status?: "pending" | "under_review" | "approved" | "rejected",
+    @Query("limit") limit?: number,
+    @Query("offset") offset?: number,
+  ) {
+    return this.complianceService.listKycRequestsForReview({
+      status,
+      limit: limit ? Number(limit) : undefined,
+      offset: offset ? Number(offset) : undefined,
+    });
   }
 
   @Get("audit-events")

@@ -6,7 +6,9 @@ import {
 } from "@nestjs/common";
 import { SolanaService } from "../solana/solana.service";
 import { ComplianceService } from "../compliance/compliance.service";
-import { PublicKey, Transaction } from "@solana/web3.js";
+import { KytService } from "../kyt/kyt.service";
+import { NotificationsService } from "../notifications/notifications.service";
+import { createHash } from "node:crypto";
 import { interval, map, startWith, switchMap } from "rxjs";
 import { PrismaService } from "../prisma/prisma.service";
 
@@ -15,7 +17,9 @@ export class SettlementsService {
   constructor(
     private readonly solanaService: SolanaService,
     private readonly complianceService: ComplianceService,
+    private readonly kytService: KytService,
     private readonly prisma: PrismaService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async getSettlements(walletAddress: string, statusFilter?: string) {
@@ -104,6 +108,7 @@ export class SettlementsService {
       "beneficiaryName",
       "beneficiaryAddress",
       "beneficiaryAccountId",
+      "purposeCode",
     ];
     const missing = required.filter((field) => !payload[field]);
     if (missing.length > 0) {
@@ -134,14 +139,77 @@ export class SettlementsService {
       );
     }
 
-    // 3. Assemble tx
+    // 3. KYT policy/provider assessment
     const senderContext =
       await this.complianceService.resolveCredentialStatus(walletAddress);
-    const tx = new Transaction();
-    tx.feePayer = new PublicKey(walletAddress);
-    tx.recentBlockhash = (
-      await this.solanaService.connection.getLatestBlockhash()
-    ).blockhash;
+    const amount = Number(data.amount);
+    const corridor = `${senderContext.institution?.jurisdiction ?? "UNK"} → ${data.receiver.jurisdiction ?? "UNK"}`;
+
+    const kytAssessment = await this.kytService.assessTransfer({
+      fromWallet: walletAddress,
+      toWallet: data.receiver.walletAddress,
+      amount,
+      asset: data.currency ?? "USDC",
+      corridor,
+    });
+
+    if (kytAssessment.status === "blocked") {
+      await this.complianceService.recordAuditEvent(
+        walletAddress,
+        "aml.flag_raised",
+        "Settlement blocked by KYT policy",
+        {
+          status: "blocked",
+          amount,
+          corridor,
+          kytProvider: kytAssessment.provider,
+          kytReason: kytAssessment.reason,
+          kytRiskScore: kytAssessment.riskScore,
+          kytFlags: kytAssessment.flags,
+        },
+      );
+
+      throw new ForbiddenException("Settlement blocked by KYT policy");
+    }
+
+    // 4. Assemble tx via settlement program instruction
+    const normalizedTravelRule = data.travelRule ?? {
+      originatorName: senderContext.institution?.name ?? "Unknown Institution",
+      originatorAddress: `${senderContext.institution?.city ?? "Unknown"}, ${senderContext.institution?.jurisdiction ?? "UNK"}`,
+      originatorAccountId: walletAddress,
+      beneficiaryName: data.receiver.institutionName ?? "Counterparty",
+      beneficiaryAddress: `${data.receiver.jurisdiction ?? "Unknown"}`,
+      beneficiaryAccountId: data.receiver.walletAddress,
+      purposeCode: "OTHR",
+    };
+    const complianceHash = `tr_${Date.now()}`;
+    const settlementReference = this.buildSettlementReference(
+      walletAddress,
+      data.receiver.walletAddress,
+      data.amount,
+    );
+
+    const { tx, feeAmount, settlementSeedHex } =
+      await this.solanaService.buildInitiateSettlementTransaction({
+        initiatorWallet: walletAddress,
+        receiverWallet: data.receiver.walletAddress,
+        amount: data.amount,
+        feeAmount: "0",
+        settlementReference,
+        complianceHash,
+        travelRule: {
+          originatorName: String(normalizedTravelRule.originatorName),
+          originatorAccountId: String(normalizedTravelRule.originatorAccountId),
+          originatorAddress: String(normalizedTravelRule.originatorAddress),
+          beneficiaryName: String(normalizedTravelRule.beneficiaryName),
+          beneficiaryAddress: String(normalizedTravelRule.beneficiaryAddress),
+          beneficiaryAccountId: String(
+            normalizedTravelRule.beneficiaryAccountId,
+          ),
+          purposeCode: String(normalizedTravelRule.purposeCode),
+        },
+      });
+
     const unsignedTransaction = tx
       .serialize({ requireAllSignatures: false })
       .toString("base64");
@@ -157,12 +225,12 @@ export class SettlementsService {
         toJurisdiction: data.receiver.jurisdiction ?? null,
         amount: String(data.amount),
         currency: data.currency ?? "USDC",
-        status: "settling",
+        status: "pending",
         unsignedTransaction,
         estimatedCompletionMs: 1800,
-        travelRulePayload: data.travelRule ?? null,
-        complianceHash: `tr_${Date.now()}`,
-        corridor: `${senderContext.institution?.jurisdiction ?? "UNK"} → ${data.receiver.jurisdiction ?? "UNK"}`,
+        travelRulePayload: normalizedTravelRule,
+        complianceHash: `${complianceHash}:${settlementSeedHex}`,
+        corridor,
         fxRate: 1,
       },
     });
@@ -173,21 +241,152 @@ export class SettlementsService {
       "Settlement initiated",
       {
         settlementId: saved.id,
-        amount: Number(data.amount),
+        amount,
         jurisdiction: senderContext.institution?.jurisdiction,
         status: "success",
+        kytStatus: kytAssessment.status,
+        kytProvider: kytAssessment.provider,
+        kytRiskScore: kytAssessment.riskScore,
+        kytReason: kytAssessment.reason,
       },
     );
+
+    // Send email notification for settlement initiated
+    try {
+      const senderRequest = await this.prisma.kycRequest.findFirst({
+        where: { walletAddress },
+        orderBy: { createdAt: "desc" },
+      });
+      if (senderRequest?.email) {
+        await this.notificationsService.notifySettlementInitiated({
+          email: senderRequest.email,
+          settlementId: saved.id,
+          amount: `${saved.amount} ${saved.currency}`,
+          receiver:
+            data.receiver.institutionName ?? data.receiver.walletAddress,
+        });
+      }
+    } catch (error) {
+      console.error("Failed to send settlement initiated email:", error);
+    }
 
     return {
       settlementId: saved.id,
       unsignedTransaction,
-      estimatedFee: "0.00",
+      estimatedFee: feeAmount,
       status: "pending_signature",
     };
   }
 
-  async confirmSettlement(walletAddress: string, id: string) {
+  async submitSettlementSignature(
+    walletAddress: string,
+    id: string,
+    signature: string,
+  ) {
+    const settlement = await this.prisma.settlement.findUnique({
+      where: { id },
+    });
+
+    if (!settlement) {
+      throw new NotFoundException("Settlement not found");
+    }
+
+    if (settlement.initiatorWallet !== walletAddress) {
+      throw new ForbiddenException("Only settlement initiator can submit tx");
+    }
+
+    const txStatus = await this.getTransactionStatus(signature);
+    if (txStatus.status === "failed") {
+      // Update settlement status to failed
+      const failed = await this.prisma.settlement.update({
+        where: { id },
+        data: {
+          txHash: signature.trim(),
+          status: "failed",
+        },
+      });
+
+      // Send email notification for settlement failed
+      try {
+        const initiatorRequest = await this.prisma.kycRequest.findFirst({
+          where: { walletAddress: settlement.initiatorWallet },
+          orderBy: { createdAt: "desc" },
+        });
+        if (initiatorRequest?.email) {
+          await this.notificationsService.notifySettlementFailed({
+            email: initiatorRequest.email,
+            settlementId: failed.id,
+            reason: JSON.stringify(txStatus.error ?? "unknown error"),
+          });
+        }
+      } catch (error) {
+        console.error("Failed to send settlement failed email:", error);
+      }
+
+      throw new BadRequestException(
+        `Settlement transaction failed: ${JSON.stringify(txStatus.error ?? "unknown error")}`,
+      );
+    }
+
+    const chainFinal =
+      txStatus.status === "confirmed" || txStatus.status === "finalized";
+
+    const updated = await this.prisma.settlement.update({
+      where: { id },
+      data: {
+        txHash: signature.trim(),
+        status: chainFinal ? "completed" : "settling",
+        completedAt: chainFinal ? new Date() : null,
+      },
+    });
+
+    if (chainFinal) {
+      await this.complianceService.recordAuditEvent(
+        walletAddress,
+        "settlement.confirmed",
+        "Settlement confirmed",
+        {
+          settlementId: updated.id,
+          amount: Number(updated.amount),
+          jurisdiction: updated.fromJurisdiction,
+          status: "success",
+        },
+        signature.trim(),
+      );
+
+      // Send email notification for settlement completed
+      try {
+        const initiatorRequest = await this.prisma.kycRequest.findFirst({
+          where: { walletAddress: updated.initiatorWallet },
+          orderBy: { createdAt: "desc" },
+        });
+        if (initiatorRequest?.email) {
+          await this.notificationsService.notifySettlementCompleted({
+            email: initiatorRequest.email,
+            settlementId: updated.id,
+            amount: `${updated.amount} ${updated.currency}`,
+            txHash: signature.trim(),
+          });
+        }
+      } catch (error) {
+        console.error("Failed to send settlement completed email:", error);
+      }
+    }
+
+    return {
+      settlementId: updated.id,
+      txHash: updated.txHash,
+      status: updated.status,
+      confirmationStatus: txStatus.confirmationStatus,
+      completedAt: updated.completedAt?.toISOString() ?? null,
+    };
+  }
+
+  async confirmSettlement(
+    walletAddress: string,
+    id: string,
+    signature?: string,
+  ) {
     const settlement = await this.prisma.settlement.findUnique({
       where: { id },
     });
@@ -195,14 +394,37 @@ export class SettlementsService {
       throw new NotFoundException("Settlement not found");
     }
 
+    const effectiveSignature = signature?.trim() || settlement.txHash?.trim();
+    if (!effectiveSignature) {
+      throw new BadRequestException("Missing settlement transaction signature");
+    }
+
+    const txStatus = await this.getTransactionStatus(effectiveSignature);
+    if (txStatus.status === "failed") {
+      await this.prisma.settlement.update({
+        where: { id },
+        data: {
+          status: "failed",
+          txHash: effectiveSignature,
+        },
+      });
+      throw new BadRequestException(
+        `Settlement transaction failed: ${JSON.stringify(txStatus.error ?? "unknown error")}`,
+      );
+    }
+
+    if (txStatus.status !== "confirmed" && txStatus.status !== "finalized") {
+      throw new BadRequestException(
+        "Settlement transaction is not yet confirmed on-chain",
+      );
+    }
+
     const updated = await this.prisma.settlement.update({
       where: { id },
       data: {
         status: "completed",
         completedAt: new Date(),
-        txHash:
-          settlement.txHash ??
-          `devnet_${settlement.id.replace(/-/g, "").slice(0, 24)}`,
+        txHash: effectiveSignature,
       },
     });
 
@@ -225,6 +447,55 @@ export class SettlementsService {
       txHash: updated.txHash,
       completedAt: updated.completedAt?.toISOString(),
     };
+  }
+
+  async getTransactionStatus(signature: string) {
+    const trimmedSignature = signature.trim();
+    if (!trimmedSignature) {
+      return {
+        signature: "",
+        status: "unknown",
+        confirmationStatus: "unknown",
+        slot: null,
+        confirmations: null,
+        error: "Missing signature",
+      } as const;
+    }
+
+    const response = await this.solanaService.connection.getSignatureStatuses(
+      [trimmedSignature],
+      { searchTransactionHistory: true },
+    );
+    const value = response.value[0];
+
+    if (!value) {
+      return {
+        signature: trimmedSignature,
+        status: "unknown",
+        confirmationStatus: "unknown",
+        slot: null,
+        confirmations: null,
+        error: null,
+      } as const;
+    }
+
+    const confirmationStatus = value.confirmationStatus ?? "processed";
+    const status = value.err
+      ? "failed"
+      : confirmationStatus === "finalized"
+        ? "finalized"
+        : confirmationStatus === "confirmed"
+          ? "confirmed"
+          : "submitted";
+
+    return {
+      signature: trimmedSignature,
+      status,
+      confirmationStatus,
+      slot: value.slot ?? null,
+      confirmations: value.confirmations ?? null,
+      error: value.err ?? null,
+    } as const;
   }
 
   async cancelSettlement(walletAddress: string, id: string) {
@@ -451,5 +722,14 @@ export class SettlementsService {
         } as Record<string, string>
       )[code] ?? "Unknown"
     );
+  }
+
+  private buildSettlementReference(
+    initiatorWallet: string,
+    receiverWallet: string,
+    amount: string | number,
+  ) {
+    const refInput = `${initiatorWallet}:${receiverWallet}:${String(amount)}:${Date.now()}`;
+    return createHash("sha256").update(refInput).digest("hex");
   }
 }

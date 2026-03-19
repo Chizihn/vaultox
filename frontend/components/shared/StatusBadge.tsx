@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import type { SettlementStatus, AuditEventType } from "@/types";
+import { Tooltip } from "./Tooltip";
 
 /* ── Settlement status badges ─────────────────────────────────────────── */
 
@@ -25,6 +26,13 @@ const settlementLabels: Record<SettlementStatus, string> = {
   settling: "Settling",
   failed: "Failed",
 };
+ 
+const settlementDescriptions: Record<SettlementStatus, string> = {
+  completed: "Funds have been released to the beneficiary. Finalized on-chain.",
+  pending: "Settlement initiated; awaiting counterparty approval or escrow funding.",
+  settling: "Funds are currently in the settlement rail or being processed by the engine.",
+  failed: "Transaction failed. Any locked funds have been returned to the source.",
+};
 
 interface SettlementBadgeProps {
   status: SettlementStatus;
@@ -33,16 +41,18 @@ interface SettlementBadgeProps {
 
 export function SettlementBadge({ status, className }: SettlementBadgeProps) {
   return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 font-body text-[11px] font-medium tracking-wide uppercase",
-        settlementStyles[status],
-        className,
-      )}
-    >
-      <span className={cn("size-1.5 rounded-full", settlementDots[status])} />
-      {settlementLabels[status]}
-    </span>
+    <Tooltip content={settlementDescriptions[status]}>
+      <span
+        className={cn(
+          "inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 font-body text-[11px] font-medium tracking-wide uppercase cursor-help",
+          settlementStyles[status],
+          className,
+        )}
+      >
+        <span className={cn("size-1.5 rounded-full", settlementDots[status])} />
+        {settlementLabels[status]}
+      </span>
+    </Tooltip>
   );
 }
 
@@ -63,6 +73,14 @@ const auditLabels: Record<AuditEventType, string> = {
   credential_update: "Credential Update",
   report_generated: "Report",
 };
+ 
+const auditDescriptions: Record<AuditEventType, string> = {
+  deposit: "Funds deposited into a yield strategy vault.",
+  withdrawal: "Funds withdrawn from a vault to the institution wallet.",
+  settlement: "Cross-border settlement initiated or completed.",
+  credential_update: "Compliance credential issued, renewed, or modified.",
+  report_generated: "Financial or compliance report generated for audit.",
+};
 
 interface AuditBadgeProps {
   type: AuditEventType;
@@ -71,15 +89,17 @@ interface AuditBadgeProps {
 
 export function AuditBadge({ type, className }: AuditBadgeProps) {
   return (
-    <span
-      className={cn(
-        "inline-flex items-center rounded-sm px-2 py-0.5 font-body text-[11px] font-medium uppercase tracking-wide",
-        auditStyles[type],
-        className,
-      )}
-    >
-      {auditLabels[type]}
-    </span>
+    <Tooltip content={auditDescriptions[type]}>
+      <span
+        className={cn(
+          "inline-flex items-center rounded-sm px-2 py-0.5 font-body text-[11px] font-medium uppercase tracking-wide cursor-help",
+          auditStyles[type],
+          className,
+        )}
+      >
+        {auditLabels[type]}
+      </span>
+    </Tooltip>
   );
 }
 

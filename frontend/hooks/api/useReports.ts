@@ -10,14 +10,8 @@ export const useReports = () => {
   const reportsQuery = useQuery({
     queryKey: ["reports", walletAddress],
     queryFn: async () => {
-      // Return empty array for now since backend doesn't exist yet for Reports endpoint
-      // Using try catch to silently fail so UI still loads
-      try {
-        const response = await api.get("/reports");
-        return response.data as Report[];
-      } catch (e) {
-        return [] as Report[];
-      }
+      const response = await api.get("/reports");
+      return response.data as Report[];
     },
     enabled: !!walletAddress,
   });

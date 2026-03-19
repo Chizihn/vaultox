@@ -10,6 +10,9 @@ import { PrismaModule } from "./prisma/prisma.module";
 import { ReportsModule } from "./reports/reports.module";
 import { AppController } from "./app.controller";
 import { MarketDataModule } from "./market-data/market-data.module";
+import { SettingsModule } from "./settings/settings.module";
+import { NotificationsModule } from "./notifications/notifications.module";
+import { KytModule } from "./kyt/kyt.module";
 
 @Module({
   imports: [
@@ -26,6 +29,9 @@ import { MarketDataModule } from "./market-data/market-data.module";
     SettlementsModule,
     ReportsModule,
     MarketDataModule,
+    SettingsModule,
+    NotificationsModule,
+    KytModule,
   ],
   controllers: [AppController],
   providers: [],

@@ -198,10 +198,12 @@ export function LandingPage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.7, delay: 0.1 }}
-              className="font-heading text-[clamp(48px,9vw,124px)] leading-[0.92] tracking-tight"
+              className="font-heading text-[clamp(40px,8vw,96px)] leading-[0.95] tracking-tight"
             >
-              <span className="text-gold">VAULT</span>
-              <span className="text-text-primary">OX</span>
+              <span className="text-text-primary">Settle Across</span>
+              <br />
+              <span className="text-text-primary">Borders. </span>
+              <span className="text-gold">Instantly.</span>
             </motion.h1>
 
             {/* Subtitle */}
@@ -211,10 +213,10 @@ export function LandingPage() {
               transition={{ duration: 0.7, delay: 0.2 }}
               className="mx-auto mt-5 max-w-lg font-body text-sm leading-relaxed text-muted-vault"
             >
-              The institutional operating system for stablecoins.
+              The institutional cross-border settlement rail on Solana.
               <br />
-              On-chain compliance, atomic settlement, and compliant yield —
-              built for banks.
+              On-chain KYC. Travel Rule built-in. SIX-verified FX.
+              Sub-2s finality.
             </motion.p>
 
             {/* CTA */}
@@ -311,7 +313,7 @@ export function LandingPage() {
                 01 / Product
               </p>
               <h2 className="mt-1 font-heading text-3xl text-text-primary">
-                Three Layers. One OS.
+              Three Layers. One Settlement Rail.
               </h2>
             </div>
           </Reveal>
@@ -320,34 +322,20 @@ export function LandingPage() {
             {[
               {
                 index: "I",
-                title: "Vault Engine",
-                tag: "Yield Infrastructure",
-                description:
-                  "Compliance-gated yield strategies. T-Bill exposure at 4.2%, private credit at 7.8%, commodity at 11.4%. Tier-1 institutions access the full stack.",
-                items: [
-                  "Real-world asset integration",
-                  "Maturity-matched allocation",
-                  "Automatic yield accrual",
-                  "Merkle-verified positions",
-                ],
-                accent: "text-gold",
-              },
-              {
-                index: "II",
                 title: "Settlement Layer",
                 tag: "Atomic Execution",
                 description:
-                  "Sub-2-second cross-border USDC settlement across 47 corridors. FX-locked at initiation. Non-custodial escrow, reversible only by mutual signature.",
+                  "Sub-2-second cross-border USDC settlement across 47 corridors. FX-locked at initiation via SIX. Non-custodial escrow, reversible only by mutual signature.",
                 items: [
                   "Solana atomic finality",
-                  "Travel Rule compliant",
-                  "47 active FX corridors",
-                  "Programmable escrow",
+                  "Travel Rule compliant (FATF)",
+                  "SIX-verified FX rates",
+                  "Holiday-aware corridors",
                 ],
                 accent: "text-teal",
               },
               {
-                index: "III",
+                index: "II",
                 title: "Compliance OS",
                 tag: "On-chain Regulation",
                 description:
@@ -359,6 +347,20 @@ export function LandingPage() {
                   "FATF Travel Rule built-in",
                 ],
                 accent: "text-ok",
+              },
+              {
+                index: "III",
+                title: "Vault Engine",
+                tag: "Treasury Parking",
+                description:
+                  "Compliance-gated yield strategies for idle treasury capital between settlements. T-Bill exposure at 4.2%, private credit at 7.8%, commodity at 11.4%.",
+                items: [
+                  "Real-world asset integration",
+                  "Maturity-matched allocation",
+                  "Automatic yield accrual",
+                  "Tier-gated access controls",
+                ],
+                accent: "text-gold",
               },
             ].map(({ index, title, tag, description, items, accent }, i) => (
               <Reveal key={title} delay={i * 0.1}>
@@ -764,7 +766,7 @@ export function LandingPage() {
                 //  className="rounded-full"
               />
               <p className="mt-2 font-body text-[11px] leading-relaxed text-muted-vault">
-                Institutional Stablecoin OS.
+                Cross-Border Settlement Infrastructure.
                 <br />
                 Built on Solana.
                 <br />
@@ -777,25 +779,27 @@ export function LandingPage() {
               {
                 title: "Platform",
                 links: [
-                  "Dashboard",
-                  "Vaults",
-                  "Settlements",
-                  "Compliance",
-                  "Reports",
+                  { label: "Dashboard", href: "/dashboard" },
+                  { label: "Vaults", href: "/vaults" },
+                  { label: "Settlements", href: "/settlements" },
+                  { label: "Compliance", href: "/compliance" },
+                  { label: "Reports", href: "/reports" },
                 ],
               },
               {
-                title: "Technology",
+                title: "Resources",
                 links: [
-                  "Architecture",
-                  "Smart Contracts",
-                  "Audit Reports",
-                  "API Reference",
+                  { label: "How It Works", href: "/how-it-works" },
+                  { label: "Platform Guide", href: "/guide" },
+                  { label: "Login", href: "/login" },
                 ],
               },
               {
-                title: "Compliance",
-                links: ["FINMA", "MiCA", "MAS", "Privacy Policy", "Terms"],
+                title: "Legal",
+                links: [
+                  { label: "Privacy Policy", href: "/privacy" },
+                  { label: "Terms of Service", href: "/terms" },
+                ],
               },
             ].map(({ title, links }) => (
               <nav key={title} aria-label={`${title} links`}>
@@ -804,12 +808,12 @@ export function LandingPage() {
                 </p>
                 <ul className="space-y-2" role="list">
                   {links.map((link) => (
-                    <li key={link}>
+                    <li key={link.label}>
                       <a
-                        href="#"
+                        href={link.href}
                         className="font-body text-[11px] text-muted-vault transition-colors hover:text-text-primary"
                       >
-                        {link}
+                        {link.label}
                       </a>
                     </li>
                   ))}

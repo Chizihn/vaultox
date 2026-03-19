@@ -18,7 +18,7 @@ type MarketQuotesPayload = {
 
 export function useMarketQuotesStream(symbols: string[]) {
   const [quotes, setQuotes] = useState<Record<string, MarketQuote>>({});
-  const [provider, setProvider] = useState("fallback");
+  const [provider, setProvider] = useState("unavailable");
   const [transport, setTransport] = useState<"stream" | "polling">("stream");
 
   const symbolsParam = useMemo(
@@ -43,7 +43,7 @@ export function useMarketQuotesStream(symbols: string[]) {
 
       if (!ignore) {
         setQuotes(nextQuotes);
-        setProvider(payload.provider ?? "fallback");
+        setProvider(payload.provider ?? "unavailable");
       }
     };
 

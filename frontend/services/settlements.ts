@@ -1,7 +1,7 @@
 /**
  * services/settlements.ts
  * ────────────────────────
- * Settlement service — initiate, confirm, cancel, Travel Rule, metrics.
+ * Settlement service — initiate, cancel, Travel Rule, metrics, live feed.
  */
 
 import api, { PaginatedResponse } from "./api";
@@ -91,11 +91,6 @@ export async function initiateSettlement(
     "/settlements/initiate",
     payload,
   );
-  return data;
-}
-
-export async function confirmSettlement(id: string): Promise<Settlement> {
-  const { data } = await api.post<Settlement>(`/settlements/${id}/confirm`);
   return data;
 }
 

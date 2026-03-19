@@ -1,13 +1,10 @@
-import {
-  BadRequestException,
-  Injectable,
-  UnauthorizedException,
-} from "@nestjs/common";
+import { Injectable, UnauthorizedException } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import * as nacl from "tweetnacl";
 import * as bs58 from "bs58";
 import { PublicKey } from "@solana/web3.js";
 import { ComplianceService } from "../compliance/compliance.service";
+import { EntraAdapterService } from "../identity/entra-adapter.service";
 
 @Injectable()
 export class AuthService {
@@ -18,6 +15,7 @@ export class AuthService {
   constructor(
     private readonly jwtService: JwtService,
     private readonly complianceService: ComplianceService,
+    private readonly entraAdapterService: EntraAdapterService,
   ) {}
 
   generateChallenge(walletAddress: string) {
@@ -111,21 +109,33 @@ export class AuthService {
     };
   }
 
-  /**
-   * DEMO ONLY: Immediately approve the latest KYC request for a wallet.
-   * This simulates a compliance officer approving the request.
-   * On next login, the wallet will have status="verified" if an approved request exists.
-   * Safe for hackathon/demo recordings; persisted in DB.
-   */
-  async demoGrantAccess(walletAddress: string) {
-    if (process.env.DEMO_MODE !== "true") {
-      throw new BadRequestException(
-        "Demo grant-access is disabled. Set DEMO_MODE=true to enable it.",
-      );
-    }
+  async approveAccess(walletAddress: string, body?: any) {
+    return this.complianceService.approveKycRequest(walletAddress, {
+      reviewerNotes: body?.reviewerNotes,
+      tier: body?.tier,
+      kycLevel: body?.kycLevel,
+      amlCoverage: body?.amlCoverage,
+      validityDays: body?.validityDays,
+      attestationHash: body?.attestationHash,
+    });
+  }
 
-    const result =
-      await this.complianceService.approveKycRequest(walletAddress);
-    return result;
+  verifyEntraAdapter(token: string, requestedWalletAddress?: string) {
+    return this.entraAdapterService.validateToken({
+      token,
+      requestedWalletAddress,
+    });
+  }
+
+  revokeEntraBinding(input: {
+    subjectId: string;
+    walletAddress: string;
+    reason?: string;
+  }) {
+    return this.entraAdapterService.revokeBinding(input);
+  }
+
+  getEntraBindingStatus(subjectId: string, walletAddress: string) {
+    return this.entraAdapterService.getBindingStatus(subjectId, walletAddress);
   }
 }

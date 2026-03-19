@@ -4,6 +4,6 @@
   "sourceRoot": "src",
   "compilerOptions": {
     "deleteOutDir": true,
-    "assets": ["solana/idl/**/*.json"]
+    "assets": ["src/solana/idl/**/*.json"]
   }
 }

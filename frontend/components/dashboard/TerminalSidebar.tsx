@@ -66,7 +66,7 @@ export function TerminalSidebar() {
 
   const sourceLabel = provider.toLowerCase().includes("six")
     ? "SIX Verified"
-    : "Fallback";
+    : "Unavailable";
 
   return (
     <section aria-label="Institutional terminal">
@@ -120,7 +120,7 @@ export function TerminalSidebar() {
 
                 <div className="text-right">
                   <p className="font-heading text-xs text-text-primary">
-                    {formatQuotePrice(symbol, quote?.price ?? 0)}
+                    {quote ? formatQuotePrice(symbol, quote.price) : "N/A"}
                   </p>
                   <p
                     className={cn(
@@ -128,8 +128,9 @@ export function TerminalSidebar() {
                       isPositive ? "text-ok" : "text-warn",
                     )}
                   >
-                    {isPositive ? "+" : ""}
-                    {change.toFixed(2)}%
+                    {quote
+                      ? `${isPositive ? "+" : ""}${change.toFixed(2)}%`
+                      : "—"}
                   </p>
                 </div>
               </div>

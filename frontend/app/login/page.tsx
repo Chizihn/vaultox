@@ -3,7 +3,7 @@ import { LoginBrand } from "@/components/login/LoginBrand";
 import { LoginForm } from "@/components/login/LoginForm";
 
 export const metadata: Metadata = {
-  title: "Login · VaultOX",
+  title: "Connect wallet",
   description:
     "Institutional access to VaultOX. Connect your wallet and verify your on-chain compliance credential.",
 };

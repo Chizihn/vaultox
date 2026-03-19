@@ -3,7 +3,14 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Lock, ChevronDown, ChevronUp, Shield, TrendingUp } from "lucide-react";
+import {
+  Lock,
+  ChevronDown,
+  ChevronUp,
+  Shield,
+  TrendingUp,
+  ArrowRight,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatPercentage } from "@/utils/format";
 import type {
@@ -18,6 +25,7 @@ import { YieldLadder } from "@/components/dashboard/YieldLadder";
 import { DepositPanel } from "@/components/dashboard/DepositPanel";
 import { SparklineChart } from "@/components/dashboard/SparklineChart";
 import { TierBadge } from "@/components/shared/TierBadge";
+import { Tooltip } from "@/components/shared/Tooltip";
 import api from "@/services/api";
 
 const TABS = ["My Vaults", "Available Strategies", "RWA Vaults"] as const;
@@ -27,6 +35,19 @@ const riskColors: Record<RiskRating, string> = {
   Low: "text-ok bg-ok/10 border-ok/30",
   Medium: "text-gold bg-gold/10 border-gold/30",
   High: "text-warn bg-warn/10 border-warn/30",
+};
+ 
+const getRiskDescription = (rating: RiskRating) => {
+  switch (rating) {
+    case "Low":
+      return "Government-backed or high-grade corporate assets with minimal volatility.";
+    case "Medium":
+      return "Diversified private credit or collateralized debt with moderate yield.";
+    case "High":
+      return "Commodity-linked or aggressive yield strategies with higher market sensitivity.";
+    default:
+      return "";
+  }
 };
 
 type MarketQuote = {
@@ -54,7 +75,7 @@ export function VaultsClient() {
   const [commodityQuotes, setCommodityQuotes] = useState<
     Record<string, MarketQuote>
   >({});
-  const [commodityProvider, setCommodityProvider] = useState("fallback");
+  const [commodityProvider, setCommodityProvider] = useState("unavailable");
 
   const currentStrategy = searchParams.get("strategy");
   const [prevStrategy, setPrevStrategy] = useState<string | null>(
@@ -81,7 +102,7 @@ export function VaultsClient() {
 
         if (!ignore) {
           setCommodityQuotes(nextQuotes);
-          setCommodityProvider(response.data?.provider ?? "fallback");
+          setCommodityProvider(response.data?.provider ?? "unavailable");
         }
       } catch (error) {
         console.error("Failed to load commodity quotes", error);
@@ -109,6 +130,9 @@ export function VaultsClient() {
 
   const safeStrategies = (strategies || []) as VaultStrategy[];
   const safePositions = (positions || []) as VaultPosition[];
+  const firstEligibleStrategy = safeStrategies.find(
+    (strategy) => userTier <= strategy.minTier,
+  );
 
   const executeWithdraw = async (positionId: string) => {
     const position = safePositions.find((entry) => entry.id === positionId);
@@ -136,7 +160,7 @@ export function VaultsClient() {
   const silverQuote = commodityQuotes["XAGUSD"];
   const commoditySourceLabel = commodityProvider.toLowerCase().includes("six")
     ? "SIX Verified"
-    : "Fallback";
+    : "Unavailable";
 
   return (
     <div className="space-y-6">
@@ -148,7 +172,22 @@ export function VaultsClient() {
             Compliance-gated yield strategies for regulated institutions
           </p>
         </div>
-        {tier && <TierBadge tier={tier} size="md" />}
+        <div className="flex items-center gap-2">
+          {firstEligibleStrategy && (
+            <button
+              onClick={() => {
+                setActiveTab("Available Strategies");
+                setExpandedId(firstEligibleStrategy.id);
+                setDepositTarget(firstEligibleStrategy.id);
+              }}
+              className="inline-flex items-center gap-1 rounded-sm bg-gold px-3 py-2 font-heading text-xs font-semibold text-vault-base transition-colors hover:bg-gold/90"
+            >
+              Quick Deposit
+              <ArrowRight className="size-3" />
+            </button>
+          )}
+          {tier && <TierBadge tier={tier} size="md" />}
+        </div>
       </div>
 
       {/* ── Tab bar ── */}
@@ -250,17 +289,21 @@ export function VaultsClient() {
                         </div>
 
                         <div className="flex shrink-0 items-center gap-3">
-                          <span
-                            className={cn(
-                              "rounded-sm border px-1.5 py-0.5 font-body text-[11px] uppercase",
-                              riskColors[strategy.riskRating],
-                            )}
-                          >
-                            {strategy.riskRating}
-                          </span>
-                          <span className="rounded-sm border border-gold/30 bg-gold/10 px-2 py-0.5 font-body text-xs text-gold">
-                            {formatPercentage(strategy.apy)} APY
-                          </span>
+                          <Tooltip content={getRiskDescription(strategy.riskRating)}>
+                            <span
+                              className={cn(
+                                "rounded-sm border px-1.5 py-0.5 font-body text-[11px] uppercase cursor-help",
+                                riskColors[strategy.riskRating],
+                              )}
+                            >
+                              {strategy.riskRating}
+                            </span>
+                          </Tooltip>
+                          <Tooltip content="Estimated annual yield based on the current strategy performance and underlying asset returns.">
+                            <span className="rounded-sm border border-gold/30 bg-gold/10 px-2 py-0.5 font-body text-xs text-gold cursor-help">
+                              {formatPercentage(strategy.apy)} APY
+                            </span>
+                          </Tooltip>
                           {position && (
                             <span className="rounded-sm bg-teal/10 px-2 py-0.5 font-body text-xs text-teal">
                               Active
@@ -308,7 +351,9 @@ export function VaultsClient() {
                                         Gold (XAU/USD)
                                       </p>
                                       <p className="font-body text-sm text-text-primary">
-                                        {formatCurrency(goldQuote?.price ?? 0)}
+                                        {goldQuote
+                                          ? formatCurrency(goldQuote.price)
+                                          : "N/A"}
                                       </p>
                                     </div>
                                     <div>
@@ -316,9 +361,9 @@ export function VaultsClient() {
                                         Silver (XAG/USD)
                                       </p>
                                       <p className="font-body text-sm text-text-primary">
-                                        {formatCurrency(
-                                          silverQuote?.price ?? 0,
-                                        )}
+                                        {silverQuote
+                                          ? formatCurrency(silverQuote.price)
+                                          : "N/A"}
                                       </p>
                                     </div>
                                   </div>
@@ -334,11 +379,13 @@ export function VaultsClient() {
                                       compact: true,
                                     }),
                                     color: "text-text-primary",
+                                    tooltip: "Total Value Locked in this strategy across all participating institutions.",
                                   },
                                   {
                                     label: "Min Tier",
                                     value: `Tier ${strategy.minTier}`,
                                     color: "text-text-primary",
+                                    tooltip: "The minimum compliance credential level required to access this strategy.",
                                   },
                                   position && {
                                     label: "Your Position",
@@ -360,19 +407,21 @@ export function VaultsClient() {
                                   .map(
                                     (stat) =>
                                       stat && (
-                                        <div key={stat.label}>
-                                          <p className="font-body text-[10px] uppercase tracking-widest text-muted-vault">
-                                            {stat.label}
-                                          </p>
-                                          <p
-                                            className={cn(
-                                              "font-body text-sm",
-                                              stat.color,
-                                            )}
-                                          >
-                                            {stat.value}
-                                          </p>
-                                        </div>
+                                        <Tooltip key={stat.label} content={stat.tooltip} position="bottom">
+                                          <div className="cursor-help">
+                                            <p className="font-body text-[10px] uppercase tracking-widest text-muted-vault">
+                                              {stat.label}
+                                            </p>
+                                            <p
+                                              className={cn(
+                                                "font-body text-sm",
+                                                stat.color,
+                                              )}
+                                            >
+                                              {stat.value}
+                                            </p>
+                                          </div>
+                                        </Tooltip>
                                       ),
                                   )}
                               </div>

@@ -2,6 +2,7 @@ import { NestFactory } from "@nestjs/core";
 import { ValidationPipe, Logger } from "@nestjs/common";
 import { SwaggerModule, DocumentBuilder } from "@nestjs/swagger";
 import { AppModule } from "./app.module";
+import { SixService } from "./six/six.service";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -57,6 +58,14 @@ async function bootstrap() {
   const httpServer = app.getHttpServer();
   httpServer.keepAliveTimeout = 90_000;
   httpServer.headersTimeout = 91_000;
+
+  const sixService = app.get(SixService);
+  const sixReadiness = sixService.getReadinessStatus();
+  if (sixReadiness.ready) {
+    logger.log(`SIX mTLS ready: ${sixReadiness.reason}`);
+  } else {
+    logger.warn(`SIX mTLS not ready: ${sixReadiness.reason}`);
+  }
 
   const port = parseInt(process.env.PORT ?? "3001", 10);
   await app.listen(port);

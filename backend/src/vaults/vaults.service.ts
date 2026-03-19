@@ -7,6 +7,8 @@ import { SolanaService } from "../solana/solana.service";
 import { ComplianceService } from "../compliance/compliance.service";
 import { PublicKey } from "@solana/web3.js";
 
+type ComplianceTier = 1 | 2 | 3;
+
 export type VaultTransactionStatus = {
   signature: string;
   status: "submitted" | "confirmed" | "finalized" | "failed" | "unknown";
@@ -23,10 +25,21 @@ export class VaultsService {
     private readonly complianceService: ComplianceService,
   ) {}
 
+  async createStrategy(data: any) {
+    return this.solanaService.initializeVaultStrategy({
+      name: data.name,
+      apyBps: Number(data.apyBps),
+      minDeposit: data.minDeposit,
+      maxCapacity: data.maxCapacity,
+      riskTier: Number(data.riskTier),
+      lockupDays: Number(data.lockupDays),
+    });
+  }
+
   async getStrategies(walletAddress: string) {
     const strategies = await this.solanaService.getVaultStrategies();
 
-    return strategies.map((s, index) => ({
+    return strategies.map((s) => ({
       id: s.publicKey.toBase58(),
       name: Buffer.from(s.account.name).toString("utf8").replace(/\0/g, ""),
       description: `${Buffer.from(s.account.name).toString("utf8").replace(/\0/g, "")} institutional strategy backed by regulated assets.`,
@@ -43,34 +56,24 @@ export class VaultsService {
           : s.account.riskTier === 2
             ? "Medium"
             : "High",
-      minTier: s.account.riskTier === 3 ? 1 : s.account.riskTier === 2 ? 2 : 3,
+      // Mapping risk tier to min compliance tier required:
+      // Risk 1 (Low)    -> Accessible to Tier 3+ (Everyone)
+      // Risk 2 (Medium) -> Accessible to Tier 2+
+      // Risk 3 (High)   -> Accessible to Tier 1 Only
+      minTier: (s.account.riskTier === 1
+        ? 3
+        : s.account.riskTier === 2
+          ? 2
+          : 1) as ComplianceTier,
       lockupDays: s.account.lockupDays,
       isActive: s.account.isActive,
-      jurisdictions: ["🇨🇭", "🇸🇬", "🇩🇪"],
+      jurisdictions: [],
       maturity:
         s.account.lockupDays > 0
           ? `${s.account.lockupDays} day lockup`
           : "Flexible liquidity",
-      category:
-        index % 3 === 0
-          ? "tbill"
-          : index % 3 === 1
-            ? "private_credit"
-            : "commodity",
-      allocation: [
-        { label: "T-Bills", percentage: 55, color: "#4FC3C3" },
-        { label: "Cash", percentage: 25, color: "#C9A84C" },
-        { label: "Reserve", percentage: 20, color: "#3DDC84" },
-      ],
-      sparklineData: [
-        4.1,
-        4.3,
-        4.25,
-        4.5,
-        4.6,
-        4.7,
-        Number(s.account.apyBps) / 100,
-      ],
+      category: "rwa",
+      sparklineData: [],
     }));
   }
 
@@ -179,22 +182,9 @@ export class VaultsService {
   }
 
   async getYieldHistory(walletAddress: string, strategyId?: string) {
-    const positions = await this.getPositions(walletAddress);
-    return positions
-      .filter((position) => !strategyId || position.strategyId === strategyId)
-      .flatMap((position) =>
-        [0, 1, 2, 3, 4, 5, 6].map((day) => ({
-          date: new Date(Date.now() - (6 - day) * 24 * 60 * 60 * 1000)
-            .toISOString()
-            .slice(0, 10),
-          strategyId: position.strategyId,
-          strategyName: position.strategyName,
-          apy: position.apy,
-          cumulativeYield: Number(
-            (position.accruedYield * ((day + 1) / 7)).toFixed(2),
-          ),
-        })),
-      );
+    const _walletAddress = walletAddress;
+    const _strategyId = strategyId;
+    return [];
   }
 
   async deposit(walletAddress: string, strategyId: string, amount: number) {
@@ -211,6 +201,7 @@ export class VaultsService {
       strategyId,
       amount,
     );
+    const strategy = await this.solanaService.getVaultStrategy(strategyId);
 
     const unsignedTransaction = tx
       .serialize({ requireAllSignatures: false })
@@ -219,8 +210,10 @@ export class VaultsService {
     return {
       depositId: `dep_${Date.now()}`,
       unsignedTransaction,
-      estimatedYield: "4.85",
-      lockupDays: 30,
+      estimatedApy: Number(strategy.apyBps) / 100,
+      lockupDays: Number(strategy.lockupDays),
+      minDepositUsdc: Number(strategy.minDeposit),
+      strategyId,
       status: "pending_signature",
     };
   }
@@ -243,9 +236,10 @@ export class VaultsService {
       .toString("base64");
 
     return {
-      withdrawId: `wd_${Date.now()}`,
+      withdrawalId: `wd_${Date.now()}`,
       unsignedTransaction,
       amountRequested: amount,
+      positionId,
       status: "pending_signature",
     };
   }

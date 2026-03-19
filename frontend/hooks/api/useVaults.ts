@@ -166,6 +166,16 @@ export const useVaults = () => {
     },
   });
 
+  const createStrategyMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const response = await api.post("/vaults/strategies", data);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["strategies"] });
+    },
+  });
+
   return {
     strategies: strategiesQuery.data,
     isLoadingStrategies: strategiesQuery.isLoading,
@@ -175,5 +185,7 @@ export const useVaults = () => {
     isDepositing: depositMutation.isPending,
     withdraw: withdrawMutation.mutateAsync,
     isWithdrawing: withdrawMutation.isPending,
+    createStrategy: createStrategyMutation.mutateAsync,
+    isCreatingStrategy: createStrategyMutation.isPending,
   };
 };

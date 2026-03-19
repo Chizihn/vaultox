@@ -32,20 +32,20 @@ const jetbrains = JetBrains_Mono({
 /* ── SEO Metadata ─────────────────────────────────────────────────────── */
 export const metadata: Metadata = {
   title: {
-    default: "VaultOX — Institutional Stablecoin Operating System",
+    default: "VaultOX — Cross-Border Stablecoin Settlement on Solana",
     template: "%s · VaultOX",
   },
   description:
-    "The institutional-grade treasury OS for regulated banks and asset managers. Compliance-gated yield vaults, cross-border settlements, and real-time audit trails — built on Solana.",
+    "Institutional cross-border USDC settlement with on-chain KYC, Travel Rule compliance, and SIX-verified FX rates. Built on Solana.",
   keywords: [
-    "institutional stablecoin",
-    "treasury management",
-    "compliance vault",
     "cross-border settlement",
+    "institutional stablecoin",
+    "Travel Rule",
+    "compliance vault",
     "Solana",
     "USDC",
-    "RWA",
-    "DeFi",
+    "SIX market data",
+    "FINMA",
   ],
   authors: [{ name: "VaultOX", url: "https://vaultox.finance" }],
   creator: "VaultOX",
@@ -54,15 +54,15 @@ export const metadata: Metadata = {
     locale: "en_US",
     url: "https://vaultox.finance",
     siteName: "VaultOX",
-    title: "VaultOX — Institutional Stablecoin Operating System",
+    title: "VaultOX — Cross-Border Stablecoin Settlement on Solana",
     description:
-      "Compliance-gated yield vaults and cross-border settlements for regulated institutions, built on Solana.",
+      "Institutional cross-border USDC settlement with on-chain KYC, Travel Rule compliance, and SIX-verified FX rates.",
   },
   twitter: {
     card: "summary_large_image",
-    title: "VaultOX — Institutional Stablecoin Operating System",
+    title: "VaultOX — Cross-Border Stablecoin Settlement on Solana",
     description:
-      "The institutional-grade treasury OS for regulated banks and asset managers, built on Solana.",
+      "Institutional cross-border USDC settlement with on-chain KYC, Travel Rule compliance, and SIX-verified FX rates.",
   },
   robots: {
     index: true,

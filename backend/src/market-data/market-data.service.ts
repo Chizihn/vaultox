@@ -42,39 +42,51 @@ export class MarketDataService {
       ? symbols.map((symbol) => symbol.trim().toUpperCase()).filter(Boolean)
       : ["EURUSD", "USDCHF", "XAUUSD"];
 
+    this.logger.log(
+      `getQuotes: symbols=[${normalizedSymbols.join(",")}], sixReady=${this.sixService.isReady()}`,
+    );
+
     if (this.sixService.isReady()) {
       const now = Date.now();
       if (now < this.sixRetryAfter) {
-        return this.getFallbackQuotes(normalizedSymbols);
+        this.logger.warn(
+          `SIX retry cooldown active, ${Math.ceil((this.sixRetryAfter - now) / 1000)}s remaining`,
+        );
+        return this.getUnavailableQuotes();
       }
 
       try {
         const sixQuotes =
           await this.sixService.getInstitutionalQuotes(normalizedSymbols);
 
-        const mergedQuotes = this.mergeWithFallbacks(
-          normalizedSymbols,
-          sixQuotes.quotes,
+        const availableQuotes = sixQuotes.quotes.filter(
+          (quote) => quote.price > 0,
         );
-        const hasAnyPrice = mergedQuotes.some((quote) => quote.price > 0);
+        const hasAnyPrice = availableQuotes.length > 0;
+        this.logger.log(
+          `SIX returned ${sixQuotes.quotes.length} quotes, ${availableQuotes.length} with valid prices (provider=${sixQuotes.provider})`,
+        );
         if (hasAnyPrice) {
           this.sixRetryAfter = 0;
           return {
             provider: sixQuotes.provider,
-            quotes: mergedQuotes,
+            quotes: availableQuotes,
           };
         }
+        this.logger.warn(
+          "SIX returned no quotes with valid prices, falling back to unavailable",
+        );
       } catch (error) {
         this.sixRetryAfter = Date.now() + this.sixRetryCooldownMs;
         this.logger.warn(
-          `SIX quote retrieval failed, falling back to mock feed for ${Math.floor(
+          `SIX quote retrieval failed, returning unavailable market data for ${Math.floor(
             this.sixRetryCooldownMs / 1000,
           )}s: ${String(error)}`,
         );
       }
     }
 
-    return this.getFallbackQuotes(normalizedSymbols);
+    return this.getUnavailableQuotes();
   }
 
   getSettlementCalendarStatus(
@@ -121,76 +133,23 @@ export class MarketDataService {
     };
   }
 
-  private getFallbackQuotes(normalizedSymbols: string[]): {
+  getSixDebugSnapshot(symbols: string[] = []) {
+    const normalizedSymbols = symbols
+      .map((symbol) => symbol.trim().toUpperCase())
+      .filter(Boolean);
+    this.logger.log(
+      `getSixDebugSnapshot: symbols=[${normalizedSymbols.join(",")}]`,
+    );
+    return this.sixService.getDebugSnapshot(normalizedSymbols);
+  }
+
+  private getUnavailableQuotes(): {
     provider: string;
     quotes: QuoteRecord[];
   } {
-    const fallbackPrices: Record<string, number> = {
-      EURUSD: 1.0894,
-      USDCHF: 0.8821,
-      XAUUSD: 2984.35,
-      XAGUSD: 33.84,
-      OILHVY: 78.42,
-      NATGAS: 2.31,
-      BLK: 924.5,
-      FOREX_RANK_1: 1,
-      USDSGD: 1.3312,
-      USDAED: 3.6725,
-    };
-
-    const quotes: QuoteRecord[] = normalizedSymbols.map((symbol, index) => ({
-      symbol,
-      price: fallbackPrices[symbol] ?? 1,
-      change24hPct: Number(
-        (((index % 2 === 0 ? 1 : -1) * (index + 1)) / 10).toFixed(2),
-      ),
-      asOf: new Date().toISOString(),
-      source: "VaultOX MarketData Fallback",
-    }));
-
     return {
-      provider: "fallback",
-      quotes,
-    };
-  }
-
-  private mergeWithFallbacks(
-    symbols: string[],
-    sixQuotes: QuoteRecord[],
-  ): QuoteRecord[] {
-    const bySymbol = new Map(sixQuotes.map((quote) => [quote.symbol, quote]));
-    return symbols.map((symbol, index) => {
-      const sixQuote = bySymbol.get(symbol);
-      if (sixQuote && sixQuote.price > 0) {
-        return sixQuote;
-      }
-
-      return this.createFallbackQuote(symbol, index);
-    });
-  }
-
-  private createFallbackQuote(symbol: string, index: number): QuoteRecord {
-    const fallbackPrices: Record<string, number> = {
-      EURUSD: 1.0894,
-      USDCHF: 0.8821,
-      XAUUSD: 2984.35,
-      XAGUSD: 33.84,
-      OILHVY: 78.42,
-      NATGAS: 2.31,
-      BLK: 924.5,
-      FOREX_RANK_1: 1,
-      USDSGD: 1.3312,
-      USDAED: 3.6725,
-    };
-
-    return {
-      symbol,
-      price: fallbackPrices[symbol] ?? 1,
-      change24hPct: Number(
-        (((index % 2 === 0 ? 1 : -1) * (index + 1)) / 10).toFixed(2),
-      ),
-      asOf: new Date().toISOString(),
-      source: "VaultOX MarketData Fallback",
+      provider: "unavailable",
+      quotes: [],
     };
   }
 }

@@ -1,8 +1,16 @@
-import { Controller, Get, MessageEvent, Query, Sse } from "@nestjs/common";
-import { ApiTags } from "@nestjs/swagger";
+import {
+  Controller,
+  Get,
+  MessageEvent,
+  Query,
+  Sse,
+  UseGuards,
+} from "@nestjs/common";
+import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import { MarketDataService } from "./market-data.service";
 import { interval, from } from "rxjs";
 import { switchMap, map, startWith } from "rxjs/operators";
+import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 
 @ApiTags("market-data")
 @Controller("market-data")
@@ -56,5 +64,17 @@ export class MarketDataController {
       jurisdiction,
       date,
     );
+  }
+
+  @Get("six/debug")
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  getSixDebugSnapshot(@Query("symbols") symbols?: string) {
+    const parsedSymbols = (symbols ?? "")
+      .split(",")
+      .map((symbol) => symbol.trim().toUpperCase())
+      .filter(Boolean);
+
+    return this.marketDataService.getSixDebugSnapshot(parsedSymbols);
   }
 }

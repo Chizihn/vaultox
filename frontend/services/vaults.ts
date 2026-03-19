@@ -21,8 +21,10 @@ export interface DepositRequest {
 export interface DepositResponse {
   depositId: string;
   unsignedTransaction: string; // base64 — user must sign with wallet
-  estimatedYield: string;
+  estimatedApy: number;
   lockupDays: number;
+  minDepositUsdc: number;
+  strategyId: string;
   status: "pending_signature";
 }
 
@@ -35,6 +37,8 @@ export interface WithdrawRequest {
 export interface WithdrawResponse {
   withdrawalId: string;
   unsignedTransaction: string;
+  amountRequested: number;
+  positionId: string;
   status: "pending_signature";
 }
 

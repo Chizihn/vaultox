@@ -2,16 +2,34 @@ import { useQuery } from "@tanstack/react-query";
 import api from "../../services/api";
 import { useAuthStore } from "../../store";
 
-function tierToComplianceScore(tier: number | null): number {
-  if (tier === 1) return 98;
-  if (tier === 2) return 85;
-  if (tier === 3) return 72;
-  return 0;
+type ComplianceScores = {
+  kycDepth: number;
+  amlCoverage: number;
+  jurisdictionReach: number;
+  reportingQuality: number;
+  transactionLimits: number;
+};
+
+function deriveComplianceScore(scores?: ComplianceScores): number {
+  if (!scores) return 0;
+  const values = Object.values(scores);
+  if (!values.length) return 0;
+  return Math.round(
+    values.reduce((sum, value) => sum + value, 0) / values.length,
+  );
 }
 
 export const useDashboard = () => {
   const walletAddress = useAuthStore((state) => state.walletAddress);
-  const tier = useAuthStore((state) => state.tier);
+
+  const credentialQuery = useQuery({
+    queryKey: ["dashboard-compliance-credential", walletAddress],
+    queryFn: async () => {
+      const response = await api.get("/compliance/credential");
+      return response.data as { complianceScores?: ComplianceScores };
+    },
+    enabled: !!walletAddress,
+  });
 
   const portfolioQuery = useQuery({
     queryKey: ["dashboard-portfolio", walletAddress],
@@ -32,7 +50,7 @@ export const useDashboard = () => {
       const response = await api.get("/settlements");
       const list: Array<{ status: string }> = response.data?.settlements ?? [];
       return {
-        activeSettlements: list.filter((s) => s.status === "processing").length,
+        activeSettlements: list.filter((s) => s.status === "settling").length,
         pendingSettlements: list.filter((s) => s.status === "pending").length,
       };
     },
@@ -41,6 +59,8 @@ export const useDashboard = () => {
 
   const portfolio = portfolioQuery.data;
   const settlementCounts = settlementsQuery.data;
+  const credential = credentialQuery.data;
+  const complianceScore = deriveComplianceScore(credential?.complianceScores);
 
   const metrics =
     portfolio || settlementCounts
@@ -50,12 +70,15 @@ export const useDashboard = () => {
           yieldToday: portfolio?.totalAccruedYield ?? 0,
           activeSettlements: settlementCounts?.activeSettlements ?? 0,
           pendingSettlements: settlementCounts?.pendingSettlements ?? 0,
-          complianceScore: tierToComplianceScore(tier),
+          complianceScore,
         }
       : undefined;
 
   return {
     metrics,
-    isLoading: portfolioQuery.isLoading || settlementsQuery.isLoading,
+    isLoading:
+      portfolioQuery.isLoading ||
+      settlementsQuery.isLoading ||
+      credentialQuery.isLoading,
   };
 };
