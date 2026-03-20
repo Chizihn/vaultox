@@ -147,7 +147,7 @@ pub struct Deposit<'info> {
     #[account(
         mut,
         constraint = strategy.is_active @ VaultError::StrategyInactive,
-        constraint = strategy.current_tvl + amount <= strategy.max_capacity @ VaultError::CapacityExceeded,
+        constraint = strategy.current_tvl.saturating_add(amount) <= strategy.max_capacity @ VaultError::CapacityExceeded,
     )]
     pub strategy: Account<'info, VaultStrategy>,
 
@@ -310,7 +310,9 @@ pub mod handler {
         }
         position.deposited_amount = position.deposited_amount.checked_add(amount)
             .ok_or(VaultError::Overflow)?;
-        position.current_value    = position.deposited_amount + position.accrued_yield;
+        position.current_value    = position.deposited_amount
+            .checked_add(position.accrued_yield)
+            .ok_or(VaultError::Overflow)?;
         position.last_updated     = clock.unix_timestamp;
 
         emit!(DepositMade {
@@ -413,7 +415,9 @@ pub mod handler {
         let accrued      = daily_yield.saturating_mul(days_elapsed);
 
         position.accrued_yield   = position.accrued_yield.saturating_add(accrued);
-        position.current_value   = position.deposited_amount + position.accrued_yield;
+        position.current_value   = position.deposited_amount
+            .checked_add(position.accrued_yield)
+            .ok_or(VaultError::Overflow)?;
         position.last_updated    = clock.unix_timestamp;
 
         Ok(())

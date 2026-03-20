@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { autoDiscover, createClient } from "@solana/client";
 import { SolanaProvider } from "@solana/react-hooks";
+import { solanaConfig } from "@/config/solana";
 
 export function SolanaWalletProvider({
   children,
@@ -19,8 +20,8 @@ export function SolanaWalletProvider({
 
   const client = useMemo(() => {
     return createClient({
-      endpoint: "https://api.devnet.solana.com",
-      websocketEndpoint: "wss://api.devnet.solana.com",
+      endpoint: solanaConfig.rpcEndpoint,
+      websocketEndpoint: solanaConfig.wsEndpoint,
       walletConnectors,
     });
   }, [walletConnectors]);

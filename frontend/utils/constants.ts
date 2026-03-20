@@ -9,7 +9,7 @@ export const NAV_LINKS: NavLink[] = [
   { label: "Compliance", href: "/compliance" },
   { label: "Reports", href: "/reports" },
   { label: "Guide", href: "/guide" },
-  { label: "Admin", href: "/admin" },
+  // { label: "Admin", href: "/admin" },
 ];
 
 // ─── Compliance Tiers ───────────────────────────────────────────────────────
@@ -36,7 +36,6 @@ export const REPORT_FRAMEWORKS = [
 ] as const;
 
 // ─── World Map Cities ───────────────────────────────────────────────────────
-
 
 // ─── Countries ─────────────────────────────-------──────────────────────────
 

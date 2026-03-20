@@ -54,6 +54,90 @@ type AmlAssessment = {
 
 @Injectable()
 export class ComplianceService {
+  /**
+   * Scan for valid on-chain credentials and populate DB with missing KYC requests.
+   */
+  async resyncDbFromOnChainCredentials(walletAddresses: string[]) {
+    const results = [];
+    for (const wallet of walletAddresses) {
+      try {
+        const credential = await this.getCredential(wallet);
+        // Check if DB record exists
+        const existing = await this.prisma.kycRequest.findFirst({
+          where: { walletAddress: wallet },
+        });
+        if (!existing && credential.isActive) {
+          // Create DB record
+          const created = await this.prisma.kycRequest.create({
+            data: {
+              walletAddress: wallet,
+              institutionName: credential.institutionName,
+              jurisdiction: credential.jurisdiction,
+              tier: credential.tier,
+              status: "approved",
+              reviewerNotes: "Auto-resynced from on-chain credential",
+            },
+          });
+          results.push({ wallet, status: "created", kycRequestId: created.id });
+        } else {
+          results.push({ wallet, status: existing ? "exists" : "inactive" });
+        }
+      } catch (err) {
+        results.push({ wallet, status: "error", error: String(err) });
+      }
+    }
+    return results;
+  }
+  async submitTierUpgradeRequest(walletAddress: string, data: any) {
+    // Validate input
+    const upgradeType = String(data.upgradeType ?? "general");
+    const upgradeDocsHash = String(data.upgradeDocsHash ?? "");
+    const upgradeRequestedTier = Number(data.upgradeRequestedTier ?? 3);
+    const now = new Date();
+
+    // Find latest KYC request
+    const latestRequest = await this.prisma.kycRequest.findFirst({
+      where: { walletAddress },
+      orderBy: { upgradeCreatedAt: "desc" },
+    });
+
+    if (!latestRequest) {
+      throw new NotFoundException("No KYC request found for wallet");
+    }
+
+    // Update KYC request with upgrade fields
+    const updated = await this.prisma.kycRequest.update({
+      where: { id: latestRequest.id },
+      data: {
+        upgradeType,
+        upgradeDocsHash,
+        upgradeRequestedTier,
+        upgradeStatus: "pending",
+        upgradeSlaDeadline: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000), // 7 days SLA
+        upgradeCreatedAt: now,
+        upgradeUpdatedAt: now,
+      },
+    });
+
+    await this.recordAuditEvent(
+      walletAddress,
+      "kyc.request_submitted",
+      "Tier upgrade request submitted",
+      {
+        requestId: updated.id,
+        upgradeType,
+        upgradeDocsHash,
+        upgradeRequestedTier,
+        upgradeStatus: "pending",
+      },
+    );
+
+    return {
+      requestId: updated.id,
+      upgradeStatus: (updated as any).upgradeStatus,
+      upgradeSlaDeadline: (updated as any).upgradeSlaDeadline,
+    };
+  }
   constructor(
     private readonly solanaService: SolanaService,
     private readonly prisma: PrismaService,
@@ -153,7 +237,7 @@ export class ComplianceService {
   async submitKycRequest(walletAddress: string, data: any) {
     const existing = await this.prisma.kycRequest.findFirst({
       where: { walletAddress },
-      orderBy: { createdAt: "desc" },
+      orderBy: { upgradeCreatedAt: "desc" },
     });
 
     const saved = await this.prisma.kycRequest.create({
@@ -192,7 +276,7 @@ export class ComplianceService {
   async getLatestKycRequest(walletAddress: string) {
     const latestRequest = await this.prisma.kycRequest.findFirst({
       where: { walletAddress },
-      orderBy: { createdAt: "desc" },
+      orderBy: { upgradeCreatedAt: "desc" },
     });
 
     if (!latestRequest) {
@@ -208,8 +292,8 @@ export class ComplianceService {
       email: latestRequest.email,
       tier: latestRequest.tier,
       status: latestRequest.status,
-      createdAt: latestRequest.createdAt,
-      updatedAt: latestRequest.updatedAt,
+      upgradeCreatedAt: latestRequest.upgradeCreatedAt,
+      upgradeUpdatedAt: latestRequest.upgradeUpdatedAt,
     };
   }
 
@@ -226,7 +310,7 @@ export class ComplianceService {
     const [items, total] = await this.prisma.$transaction([
       this.prisma.kycRequest.findMany({
         where,
-        orderBy: { createdAt: "desc" },
+        orderBy: { upgradeCreatedAt: "desc" },
         take: limit,
         skip: offset,
       }),
@@ -329,8 +413,8 @@ export class ComplianceService {
             latestTxByWallet.get(item.walletAddress)?.txHash ?? null,
           latestCredentialTxAt:
             latestTxByWallet.get(item.walletAddress)?.createdAt ?? null,
-          createdAt: item.createdAt,
-          updatedAt: item.updatedAt,
+          upgradeCreatedAt: item.upgradeCreatedAt,
+          upgradeUpdatedAt: item.upgradeUpdatedAt,
         };
       }),
     };
@@ -366,7 +450,7 @@ export class ComplianceService {
 
   async getCounterparties(walletAddress: string) {
     const requests = await this.prisma.kycRequest.findMany({
-      orderBy: { updatedAt: "desc" },
+      orderBy: { upgradeUpdatedAt: "desc" },
       take: 20,
     });
 
@@ -379,7 +463,7 @@ export class ComplianceService {
         jurisdictionFlag: this.getJurisdictionFlag(request.jurisdiction ?? ""),
         tier: Math.min(3, Math.max(1, request.tier || 3)) as 1 | 2 | 3,
         kyc_level: Math.min(3, Math.max(1, request.tier || 3)),
-        last_verified: request.updatedAt.toISOString(),
+        last_verified: request.upgradeUpdatedAt.toISOString(),
         status:
           request.status === "approved"
             ? "verified"
@@ -409,7 +493,7 @@ export class ComplianceService {
     } catch {
       const latestRequest = await this.prisma.kycRequest.findFirst({
         where: { walletAddress },
-        orderBy: { createdAt: "desc" },
+        orderBy: { upgradeCreatedAt: "desc" },
       });
 
       return {
@@ -433,7 +517,7 @@ export class ComplianceService {
   ) {
     const latestRequest = await this.prisma.kycRequest.findFirst({
       where: { walletAddress },
-      orderBy: { createdAt: "desc" },
+      orderBy: { upgradeCreatedAt: "desc" },
     });
 
     if (!latestRequest) {
@@ -582,7 +666,7 @@ export class ComplianceService {
   ) {
     const latestRequest = await this.prisma.kycRequest.findFirst({
       where: { walletAddress },
-      orderBy: { createdAt: "desc" },
+      orderBy: { upgradeCreatedAt: "desc" },
     });
 
     if (!latestRequest) {
@@ -645,7 +729,7 @@ export class ComplianceService {
   async rejectKycRequest(walletAddress: string, reviewerNotes?: string) {
     const latestRequest = await this.prisma.kycRequest.findFirst({
       where: { walletAddress },
-      orderBy: { createdAt: "desc" },
+      orderBy: { upgradeCreatedAt: "desc" },
     });
 
     if (!latestRequest) {

@@ -17,6 +17,19 @@ import { AdminApiKeyGuard } from "../common/guards/admin-api-key.guard";
 @ApiTags("compliance")
 @Controller("compliance")
 export class ComplianceController {
+  @Post("admin/resync-kyc-from-chain")
+  @UseGuards(AdminApiKeyGuard)
+  @ApiBearerAuth()
+  async resyncKycFromChain(@Body() body: { wallets: string[] }) {
+    return this.complianceService.resyncDbFromOnChainCredentials(body.wallets);
+  }
+  @Post("credential/upgrade-request")
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  submitTierUpgradeRequest(@WalletAddress() wallet: string, @Body() body: any) {
+    // body: { upgradeType, upgradeDocsHash, upgradeRequestedTier }
+    return this.complianceService.submitTierUpgradeRequest(wallet, body);
+  }
   constructor(private readonly complianceService: ComplianceService) {}
 
   @Get("credential")

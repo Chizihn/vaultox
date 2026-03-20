@@ -23,6 +23,8 @@ CREATE TABLE "audit_events" (
 
 -- CreateTable
 CREATE TABLE "kyc_requests" (
+    "upgrade_reviewer_id" TEXT,
+    "upgrade_reviewed_at" TIMESTAMP(3),
     "id" TEXT NOT NULL,
     "wallet_address" TEXT NOT NULL,
     "institution_name" TEXT NOT NULL,
@@ -33,8 +35,14 @@ CREATE TABLE "kyc_requests" (
     "kyc_documents_hash" TEXT,
     "status" "KycRequestStatus" NOT NULL DEFAULT 'pending',
     "reviewer_notes" TEXT,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
+    "upgrade_type" TEXT,
+    "upgrade_docs_hash" TEXT,
+    "upgrade_status" "KycRequestStatus",
+    "upgrade_reviewer_notes" TEXT,
+    "upgrade_requested_tier" INTEGER,
+    "upgrade_sla_deadline" TIMESTAMP(3),
+    "upgrade_created_at" TIMESTAMP(3),
+    "upgrade_updated_at" TIMESTAMP(3),
 
     CONSTRAINT "kyc_requests_pkey" PRIMARY KEY ("id")
 );

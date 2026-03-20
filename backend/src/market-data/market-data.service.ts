@@ -42,9 +42,9 @@ export class MarketDataService {
       ? symbols.map((symbol) => symbol.trim().toUpperCase()).filter(Boolean)
       : ["EURUSD", "USDCHF", "XAUUSD"];
 
-    this.logger.log(
-      `getQuotes: symbols=[${normalizedSymbols.join(",")}], sixReady=${this.sixService.isReady()}`,
-    );
+    // this.logger.log(
+    //   `getQuotes: symbols=[${normalizedSymbols.join(",")}], sixReady=${this.sixService.isReady()}`,
+    // );
 
     if (this.sixService.isReady()) {
       const now = Date.now();
@@ -63,9 +63,9 @@ export class MarketDataService {
           (quote) => quote.price > 0,
         );
         const hasAnyPrice = availableQuotes.length > 0;
-        this.logger.log(
-          `SIX returned ${sixQuotes.quotes.length} quotes, ${availableQuotes.length} with valid prices (provider=${sixQuotes.provider})`,
-        );
+        // this.logger.log(
+        //   `SIX returned ${sixQuotes.quotes.length} quotes, ${availableQuotes.length} with valid prices (provider=${sixQuotes.provider})`,
+        // );
         if (hasAnyPrice) {
           this.sixRetryAfter = 0;
           return {

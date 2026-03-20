@@ -149,7 +149,7 @@ pub struct InitiateSettlement<'info> {
         seeds = [b"settlement", params.id.as_ref()],
         bump
     )]
-    pub settlement: Account<'info, Settlement>,
+    pub settlement: Box<Account<'info, Settlement>>,
 
     /// Escrow account that will hold USDC until settlement is confirmed
     #[account(
@@ -160,7 +160,7 @@ pub struct InitiateSettlement<'info> {
         token::mint = usdc_mint,
         token::authority = settlement,  // Settlement PDA is escrow authority
     )]
-    pub escrow_token_account: Account<'info, TokenAccount>,
+    pub escrow_token_account: Box<Account<'info, TokenAccount>>,
 
     /// CHECK: USDC mint — validated by token constraints
     pub usdc_mint: AccountInfo<'info>,
@@ -170,7 +170,7 @@ pub struct InitiateSettlement<'info> {
         mut,
         constraint = initiator_token_account.owner == initiator.key() @ SettlementError::Unauthorized
     )]
-    pub initiator_token_account: Account<'info, TokenAccount>,
+    pub initiator_token_account: Box<Account<'info, TokenAccount>>,
 
     #[account(mut)]
     pub initiator: Signer<'info>,
@@ -180,7 +180,7 @@ pub struct InitiateSettlement<'info> {
         bump = initiator_credential.bump,
         constraint = initiator_credential.status == CredentialStatus::Active as u8 @ SettlementError::InitiatorNotKyced,
     )]
-    pub initiator_credential: Account<'info, ComplianceCredential>,
+    pub initiator_credential: Box<Account<'info, ComplianceCredential>>,
 
     #[account(
         seeds = [b"credential", params.receiver.as_ref()],
@@ -188,7 +188,7 @@ pub struct InitiateSettlement<'info> {
         constraint = receiver_credential.status == CredentialStatus::Active as u8 @ SettlementError::ReceiverNotKyced,
         constraint = (initiator_credential.tier < 3 || initiator_credential.jurisdiction == receiver_credential.jurisdiction) @ SettlementError::TierTooLowForCrossBorder
     )]
-    pub receiver_credential: Account<'info, ComplianceCredential>,
+    pub receiver_credential: Box<Account<'info, ComplianceCredential>>,
 
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
@@ -279,6 +279,10 @@ pub struct CancelSettlement<'info> {
 pub mod handler {
     use super::*;
 
+    fn has_non_zero(bytes: &[u8]) -> bool {
+        bytes.iter().any(|byte| *byte != 0)
+    }
+
     /// Initiate a cross-border settlement.
     /// Locks (amount + fee) USDC in an escrow PDA.
     /// Full Travel Rule payload stored on-chain.
@@ -292,19 +296,19 @@ pub mod handler {
         // Travel Rule threshold: all USDC settlements above 0 require Travel Rule
         // (Platform decision: apply to all settlements for hackathon demo completeness)
         require!(
-            params.originator_name     != [0u8; 64],
+            has_non_zero(&params.originator_name),
             SettlementError::TravelRuleMissing
         );
         require!(
-            params.beneficiary_name    != [0u8; 64],
+            has_non_zero(&params.beneficiary_name),
             SettlementError::TravelRuleMissing
         );
         require!(
-            params.originator_account  != [0u8; 34],
+            has_non_zero(&params.originator_account),
             SettlementError::TravelRuleMissing
         );
         require!(
-            params.beneficiary_account != [0u8; 34],
+            has_non_zero(&params.beneficiary_account),
             SettlementError::TravelRuleMissing
         );
         require!(params.amount > 0, SettlementError::ZeroAmount);

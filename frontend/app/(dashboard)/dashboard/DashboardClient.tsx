@@ -81,7 +81,10 @@ export function DashboardClient() {
     return acc + p.currentValue;
   }, 0);
 
-  const [sixStatus, setSixStatus] = useState<{ ready: boolean; reason?: string } | null>(null);
+  const [sixStatus, setSixStatus] = useState<{
+    ready: boolean;
+    reason?: string;
+  } | null>(null);
 
   useEffect(() => {
     const checkSix = async () => {
@@ -122,45 +125,26 @@ export function DashboardClient() {
         </div>
         <div className="flex items-center gap-3">
           {sixStatus && (
-            <div className={cn(
-              "flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-body text-[10px] tracking-wide uppercase transition-colors",
-              sixStatus.ready 
-                ? "border-ok/30 bg-ok/5 text-ok" 
-                : "border-warn/30 bg-warn/5 text-warn"
-            )}>
-              <span className={cn("size-1.5 rounded-full", sixStatus.ready ? "bg-ok pulse-ok" : "bg-warn")} />
+            <div
+              className={cn(
+                "flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-body text-[10px] tracking-wide uppercase transition-colors",
+                sixStatus.ready
+                  ? "border-ok/30 bg-ok/5 text-ok"
+                  : "border-warn/30 bg-warn/5 text-warn",
+              )}
+            >
+              <span
+                className={cn(
+                  "size-1.5 rounded-full",
+                  sixStatus.ready ? "bg-ok pulse-ok" : "bg-warn",
+                )}
+              />
               SIX Rail: {sixStatus.ready ? "Online" : "Offline"}
             </div>
           )}
           {tier && <TierBadge tier={tier} size="md" />}
         </div>
       </motion.div>
-
-      {/* ── Settlement Hero: World Map (full width, above fold) ── */}
-      <section aria-label="Global settlement network">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="font-heading text-sm font-semibold text-text-primary">
-            Global Settlement Network
-          </h2>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5">
-              <span className="size-1.5 animate-pulse rounded-full bg-teal" />
-              <span className="font-body text-[11px] text-muted-vault">
-                Live
-              </span>
-            </div>
-            <Link
-              href="/settlements"
-              className="inline-flex items-center gap-1 font-body text-xs text-teal hover:underline"
-            >
-              Initiate Settlement <ArrowUpRight className="size-3" />
-            </Link>
-          </div>
-        </div>
-        <div className="overflow-hidden rounded-sm border border-vault-border">
-          <WorldMap arcs={liveArcs} className="aspect-3/1 w-full min-h-48" />
-        </div>
-      </section>
 
       {/* ── Hero metrics row (settlement-first order) ── */}
       <section
@@ -277,7 +261,7 @@ export function DashboardClient() {
 
           {/* Active vault positions (secondary, below settlement) */}
           <section aria-label="Active vault positions">
-            <div className="mb-4 flex items-center justify-between">
+            {/* <div className="mb-4 flex items-center justify-between">
               <h2 className="font-heading text-sm font-semibold text-text-primary">
                 Treasury Parking — Vault Positions
               </h2>
@@ -305,7 +289,36 @@ export function DashboardClient() {
                   />
                 );
               })}
-            </div>
+            </div> */}
+
+            {/* ── Settlement Hero: World Map (full width, above fold) ── */}
+            <section className="mt-10" aria-label="Global settlement network">
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="font-heading text-sm font-semibold text-text-primary">
+                  Global Settlement Network
+                </h2>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-1.5">
+                    <span className="size-1.5 animate-pulse rounded-full bg-teal" />
+                    <span className="font-body text-[11px] text-muted-vault">
+                      Live
+                    </span>
+                  </div>
+                  <Link
+                    href="/settlements"
+                    className="inline-flex items-center gap-1 font-body text-xs text-teal hover:underline"
+                  >
+                    Initiate Settlement <ArrowUpRight className="size-3" />
+                  </Link>
+                </div>
+              </div>
+              <div className="overflow-hidden rounded-sm border border-vault-border">
+                <WorldMap
+                  arcs={liveArcs}
+                  className="aspect-3/1 w-full min-h-48"
+                />
+              </div>
+            </section>
           </section>
         </div>
 

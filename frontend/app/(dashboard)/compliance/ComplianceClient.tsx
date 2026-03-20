@@ -18,6 +18,7 @@ import type {
   AuditEvent,
 } from "@/types";
 import { useAuthStore } from "@/store";
+import { getSolanaExplorerAddressUrl } from "@/config/solana";
 import { useCompliance } from "@/hooks/api/useCompliance";
 import { ComplianceRadar } from "@/components/dashboard/ComplianceRadar";
 import { TierBadge } from "@/components/shared/TierBadge";
@@ -161,7 +162,9 @@ export function ComplianceClient() {
                       </span>
                     </Tooltip>
                     <a
-                      href={`https://explorer.solana.com/address/${credential.credentialAddress}?cluster=devnet`}
+                      href={getSolanaExplorerAddressUrl(
+                        credential.credentialAddress,
+                      )}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-teal hover:underline"

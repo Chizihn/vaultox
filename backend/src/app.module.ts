@@ -13,6 +13,7 @@ import { MarketDataModule } from "./market-data/market-data.module";
 import { SettingsModule } from "./settings/settings.module";
 import { NotificationsModule } from "./notifications/notifications.module";
 import { KytModule } from "./kyt/kyt.module";
+import { SolsticeModule } from "./solstice/solstice.module";
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { KytModule } from "./kyt/kyt.module";
     SettingsModule,
     NotificationsModule,
     KytModule,
+    SolsticeModule,
   ],
   controllers: [AppController],
   providers: [],

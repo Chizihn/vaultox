@@ -1,12 +1,8 @@
 import { useMutation } from "@tanstack/react-query";
 import api from "../../services/api";
-import { useAuthStore } from "../../store";
+import { resetAuthState, useAuthStore } from "../../store";
 import type { Institution } from "@/types";
-import {
-  setAccessToken,
-  setCredentialStatus,
-  clearAuthSession,
-} from "@/utils/session";
+import { setAccessToken, setCredentialStatus } from "@/utils/session";
 
 interface AuthResponse {
   accessToken: string;
@@ -15,7 +11,7 @@ interface AuthResponse {
 }
 
 export const useAuth = () => {
-  const { connect, disconnect } = useAuthStore();
+  const { connect } = useAuthStore();
 
   const getChallengeMutation = useMutation({
     mutationFn: async (walletAddress: string) => {
@@ -51,8 +47,7 @@ export const useAuth = () => {
     verifySignature: verifySignatureMutation.mutateAsync,
     isVerifying: verifySignatureMutation.isPending,
     logout: () => {
-      clearAuthSession();
-      disconnect();
+      resetAuthState();
     },
   };
 };

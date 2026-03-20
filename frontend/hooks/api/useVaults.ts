@@ -9,6 +9,8 @@ type PendingSignatureResponse = {
   depositId?: string;
   withdrawId?: string;
   withdrawalId?: string;
+  strategyId?: string;
+  positionId?: string;
   status?: string;
 };
 
@@ -113,6 +115,26 @@ export const useVaults = () => {
     };
 
     const confirmedStatus = await waitForConfirmation();
+
+    const txType = responseData.depositId
+      ? "deposit"
+      : responseData.withdrawId || responseData.withdrawalId
+        ? "withdraw"
+        : null;
+
+    if (txType) {
+      try {
+        await api.post("/vaults/transactions/record", {
+          type: txType,
+          signature: signatureText,
+          status: confirmedStatus.status,
+          strategyId: responseData.strategyId,
+          positionId: responseData.positionId,
+        });
+      } catch (error) {
+        console.error("Failed to record vault transaction", error);
+      }
+    }
 
     return {
       ...responseData,

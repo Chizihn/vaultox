@@ -8,6 +8,17 @@ import api, { PaginatedResponse } from "./api";
 import type { ComplianceCredential, AuditEvent } from "@/types";
 
 // ---------------------------------------------------------------------------
+/**
+ * Admin: Resync DB from on-chain credentials for all wallets (after DB reset).
+ */
+export async function resyncKycDbFromChainAdmin(adminKey: string) {
+  const { data } = await api.post(
+    "/compliance/admin/resync-kyc-from-chain",
+    {},
+    { headers: { "x-admin-api-key": adminKey } },
+  );
+  return data;
+}
 // Extended Types (API-specific, not in shared types)
 // ---------------------------------------------------------------------------
 

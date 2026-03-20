@@ -94,11 +94,39 @@ export class VaultsController {
     return this.vaultsService.withdraw(wallet, body.positionId, body.amount);
   }
 
+  @Post("test-solstice")
+  @UseGuards(JwtAuthGuard, AdminApiKeyGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      "Admin only: Test Solstice API connectivity and instruction building",
+  })
+  testSolstice(
+    @WalletAddress() wallet: string,
+    @Body() body: { amount?: number; walletAddress?: string },
+  ) {
+    return this.vaultsService.testSolsticeIntegration(
+      wallet,
+      body.amount || 1000,
+      body.walletAddress,
+    );
+  }
+
   @Get("transactions/status")
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: "Get on-chain status for a submitted signature" })
   getTransactionStatus(@Query("signature") signature?: string) {
     return this.vaultsService.getTransactionStatus(signature ?? "");
+  }
+
+  @Post("transactions/record")
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: "Record completed vault transaction for audit/history",
+  })
+  recordTransaction(@WalletAddress() wallet: string, @Body() body: any) {
+    return this.vaultsService.recordTransaction(wallet, body);
   }
 }

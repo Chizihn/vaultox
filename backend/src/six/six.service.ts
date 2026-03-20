@@ -109,13 +109,13 @@ export class SixService implements OnModuleInit {
       .map((symbol) => SYMBOL_TO_VALOR_BC[symbol])
       .filter(Boolean);
 
-    this.logger.log(
-      `getInstitutionalQuotes: symbols=[${normalizedSymbols.join(",")}], valorIds=[${ids.join(",")}]`,
-    );
+    // this.logger.log(
+    //   `getInstitutionalQuotes: symbols=[${normalizedSymbols.join(",")}], valorIds=[${ids.join(",")}]`,
+    // );
 
     if (!ids.length) {
-      this.logger.warn("getInstitutionalQuotes: no VALOR IDs mapped, returning empty");
-      return { provider: "SIX-empty", quotes: [] };
+      // this.logger.warn("getInstitutionalQuotes: no VALOR IDs mapped, returning empty");
+      // return { provider: "SIX-empty", quotes: [] };
     }
 
     const response = await this.callIntradaySnapshot(ids);
@@ -245,10 +245,10 @@ export class SixService implements OnModuleInit {
       rawDump = "[unserializable]";
     }
 
-    this.logger.warn(
-      `SIX returned no parseable intraday instruments from REST endpoint (kind=${payloadKind}, requestedIds=${requestedIds.join(",")}, keys=${topLevelKeys.join("|") || "n/a"})`,
-    );
-    this.logger.warn(`SIX raw payload dump (truncated to 2000 chars):\n${rawDump}`);
+    // this.logger.warn(
+    //   `SIX returned no parseable intraday instruments from REST endpoint (kind=${payloadKind}, requestedIds=${requestedIds.join(",")}, keys=${topLevelKeys.join("|") || "n/a"})`,
+    // );
+    // this.logger.warn(`SIX raw payload dump (truncated to 2000 chars):\n${rawDump}`);
   }
 
   private normalizeChange(relative?: number): number {
@@ -351,9 +351,9 @@ export class SixService implements OnModuleInit {
       url.searchParams.set("ids", ids.join(","));
       url.searchParams.set("preferredLanguage", "EN");
 
-      this.logger.log(
-        `SIX REST request: GET ${url.pathname}?${url.searchParams.toString()} (${ids.length} IDs)`,
-      );
+      // this.logger.log(
+      //   `SIX REST request: GET ${url.pathname}?${url.searchParams.toString()} (${ids.length} IDs)`,
+      // );
 
       return new Promise((resolve, reject) => {
         const req = https.request(
@@ -376,9 +376,9 @@ export class SixService implements OnModuleInit {
             res.on("data", (chunk: Buffer) => chunks.push(chunk));
             res.on("end", () => {
               const body = Buffer.concat(chunks).toString("utf8");
-              this.logger.log(
-                `SIX REST response: ${res.statusCode} from ${url.pathname} (${body.length} bytes)`,
-              );
+              // this.logger.log(
+              //   `SIX REST response: ${res.statusCode} from ${url.pathname} (${body.length} bytes)`,
+              // );
               if (res.statusCode && res.statusCode >= 400) {
                 this.logger.warn(
                   `SIX REST endpoint error: ${res.statusCode} at ${url.pathname} — body: ${body.slice(0, 500)}`,
@@ -392,9 +392,9 @@ export class SixService implements OnModuleInit {
 
               try {
                 const parsed = JSON.parse(body) as SixRestSnapshotResponse;
-                this.logger.log(
-                  `SIX REST parsed successfully from ${url.pathname}: type=${Array.isArray(parsed) ? "array" : typeof parsed}`,
-                );
+                // this.logger.log(
+                //   `SIX REST parsed successfully from ${url.pathname}: type=${Array.isArray(parsed) ? "array" : typeof parsed}`,
+                // );
                 resolve(parsed);
               } catch (error) {
                 this.logger.error(
@@ -426,9 +426,9 @@ export class SixService implements OnModuleInit {
       let lastError: unknown;
       for (const endpoint of this.intradaySnapshotUrls) {
         try {
-          this.logger.log(`Trying SIX endpoint: ${endpoint}`);
+          // this.logger.log(`Trying SIX endpoint: ${endpoint}`);
           const result = await requestSingleEndpoint(endpoint);
-          this.logger.log(`SIX endpoint succeeded: ${endpoint}`);
+          // this.logger.log(`SIX endpoint succeeded: ${endpoint}`);
           return result;
         } catch (error) {
           this.logger.warn(
@@ -545,7 +545,8 @@ export class SixService implements OnModuleInit {
           }
 
           // Compute relative change from open if not explicitly provided
-          const openPrice = this.toNumber(open?.value) ?? this.toNumber(open?.price);
+          const openPrice =
+            this.toNumber(open?.value) ?? this.toNumber(open?.price);
           const computedRelativeChange =
             openPrice && openPrice > 0
               ? (price - openPrice) / openPrice
@@ -586,9 +587,9 @@ export class SixService implements OnModuleInit {
 
     visit(payload);
 
-    this.logger.log(
-      `extractQuotesByValorId: extracted ${quotes.size} quotes, IDs: [${Array.from(quotes.keys()).join(", ")}]`,
-    );
+    // this.logger.log(
+    //   `extractQuotesByValorId: extracted ${quotes.size} quotes, IDs: [${Array.from(quotes.keys()).join(", ")}]`,
+    // );
 
     return quotes;
   }

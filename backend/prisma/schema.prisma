@@ -43,6 +43,8 @@ model AuditEvent {
 }
 
 model KycRequest {
+    upgradeReviewerId      String?           @map("upgrade_reviewer_id")
+    upgradeReviewedAt      DateTime?         @map("upgrade_reviewed_at")
   id               String           @id @default(uuid())
   walletAddress    String           @map("wallet_address")
   institutionName  String           @map("institution_name")
@@ -53,8 +55,14 @@ model KycRequest {
   kycDocumentsHash String?          @map("kyc_documents_hash")
   status           KycRequestStatus @default(pending)
   reviewerNotes    String?          @map("reviewer_notes")
-  createdAt        DateTime         @default(now()) @map("created_at")
-  updatedAt        DateTime         @updatedAt @map("updated_at")
+  upgradeType      String?          @map("upgrade_type")
+  upgradeDocsHash  String?          @map("upgrade_docs_hash")
+  upgradeStatus    KycRequestStatus? @map("upgrade_status")
+  upgradeReviewerNotes String?      @map("upgrade_reviewer_notes")
+  upgradeRequestedTier Int?         @map("upgrade_requested_tier")
+  upgradeSlaDeadline DateTime?      @map("upgrade_sla_deadline")
+  upgradeCreatedAt DateTime?        @map("upgrade_created_at")
+  upgradeUpdatedAt DateTime?        @map("upgrade_updated_at")
 
   @@index([walletAddress])
   @@map("kyc_requests")

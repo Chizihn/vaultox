@@ -6,48 +6,49 @@ import {
   approveKycRequestAdmin,
   getAdminKycQueue,
   rejectKycRequestAdmin,
+  resyncKycDbFromChainAdmin,
   resyncKycCredentialAdmin,
   type AdminKycRequestItem,
 } from "@/services/compliance";
-import api from "@/services/api";
+// import api from "@/services/api";
 import { formatAddress, formatDate } from "@/utils/format";
-import { getErrorMessage } from "@/utils/error-handler";
+// import { getErrorMessage } from "@/utils/error-handler";
 
 type StatusFilter = "pending" | "under_review" | "approved" | "rejected";
 
-type SixDebugResponse = {
-  ready: boolean;
-  reason?: string;
-  request?: {
-    symbols?: string[];
-    valorIds?: string[];
-  };
-  payload?: {
-    rootType?: string;
-    rootKeys?: string[];
-    sampleNodes?: Array<{
-      path: string;
-      keys: string[];
-      idHints: string[];
-      symbolHints: string[];
-      priceHints: number[];
-    }>;
-  };
-  extraction?: {
-    parsedQuoteCount?: number;
-    matchedValorIds?: string[];
-    unmatchedValorIds?: string[];
-    sampleParsedEntries?: Array<{
-      id: string;
-      price: number | null;
-      asOf: string | null;
-      relativeChange: number | null;
-      source: string | null;
-    }>;
-  };
-  error?: string;
-};
-const SOLANA_EXPLORER_TX_BASE = "https://explorer.solana.com/tx";
+// type SixDebugResponse = {
+//   ready: boolean;
+//   reason?: string;
+//   request?: {
+//     symbols?: string[];
+//     valorIds?: string[];
+//   };
+//   payload?: {
+//     rootType?: string;
+//     rootKeys?: string[];
+//     sampleNodes?: Array<{
+//       path: string;
+//       keys: string[];
+//       idHints: string[];
+//       symbolHints: string[];
+//       priceHints: number[];
+//     }>;
+//   };
+//   extraction?: {
+//     parsedQuoteCount?: number;
+//     matchedValorIds?: string[];
+//     unmatchedValorIds?: string[];
+//     sampleParsedEntries?: Array<{
+//       id: string;
+//       price: number | null;
+//       asOf: string | null;
+//       relativeChange: number | null;
+//       source: string | null;
+//     }>;
+//   };
+//   error?: string;
+// };
+import { getSolanaExplorerTxUrl } from "@/config/solana";
 
 export function AdminKycClient() {
   const [adminKey, setAdminKey] = useState("");
@@ -65,14 +66,14 @@ export function AdminKycClient() {
     {},
   );
   const [noteByWallet, setNoteByWallet] = useState<Record<string, string>>({});
-  const [sixDebugSymbols, setSixDebugSymbols] = useState(
-    "EURUSD,USDCHF,XAUUSD",
-  );
-  const [sixDebugLoading, setSixDebugLoading] = useState(false);
-  const [sixDebugError, setSixDebugError] = useState<string | null>(null);
-  const [sixDebugData, setSixDebugData] = useState<SixDebugResponse | null>(
-    null,
-  );
+  // const [sixDebugSymbols, setSixDebugSymbols] = useState(
+  //   "EURUSD,USDCHF,XAUUSD",
+  // );
+  // const [sixDebugLoading, setSixDebugLoading] = useState(false);
+  // const [sixDebugError, setSixDebugError] = useState<string | null>(null);
+  // const [sixDebugData, setSixDebugData] = useState<SixDebugResponse | null>(
+  //   null,
+  // );
   useEffect(() => {
     const timeout = window.setTimeout(() => {
       setDebouncedAdminKey(adminKey);
@@ -225,29 +226,56 @@ export function AdminKycClient() {
     }
   };
 
-  const runSixDebug = async () => {
-    setSixDebugLoading(true);
-    setSixDebugError(null);
-    try {
-      const response = await api.get<SixDebugResponse>(
-        "/market-data/six/debug",
-        {
-          params: { symbols: sixDebugSymbols },
-        },
-      );
-      setSixDebugData(response.data);
-    } catch (debugError) {
-      setSixDebugData(null);
-      setSixDebugError(
-        getErrorMessage(debugError, "Failed to fetch SIX diagnostics"),
-      );
-    } finally {
-      setSixDebugLoading(false);
-    }
-  };
+  // const runSixDebug = async () => {
+  //   setSixDebugLoading(true);
+  //   setSixDebugError(null);
+  //   try {
+  //     const response = await api.get<SixDebugResponse>(
+  //       "/market-data/six/debug",
+  //       {
+  //         params: { symbols: sixDebugSymbols },
+  //       },
+  //     );
+  //     setSixDebugData(response.data);
+  //   } catch (debugError) {
+  //     setSixDebugData(null);
+  //     setSixDebugError(
+  //       getErrorMessage(debugError, "Failed to fetch SIX diagnostics"),
+  //     );
+  //   } finally {
+  //     setSixDebugLoading(false);
+  //   }
+  // };
 
   return (
     <div className="space-y-6">
+      {isUnlocked && (
+        <section className="rounded-sm border border-vault-border bg-vault-surface p-4">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={async () => {
+                setLoading(true);
+                setError(null);
+                try {
+                  await resyncKycDbFromChainAdmin(normalizedInputKey);
+                  await refreshQueue();
+                } catch {
+                  setError("Failed to resync DB from on-chain credentials.");
+                } finally {
+                  setLoading(false);
+                }
+              }}
+              disabled={loading}
+              className="rounded-sm bg-gold px-4 py-2.5 font-heading text-xs text-vault-base disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {loading ? "Resyncing..." : "Resync DB from On-Chain Credentials"}
+            </button>
+            <span className="font-body text-xs text-muted-vault">
+              Use this to restore missing KYC records after DB reset.
+            </span>
+          </div>
+        </section>
+      )}
       <div>
         <h1 className="font-heading text-2xl text-gold">KYC Admin Queue</h1>
         <p className="font-body text-xs text-muted-vault">
@@ -326,7 +354,7 @@ export function AdminKycClient() {
         )}
       </section>
 
-      <section className="rounded-sm border border-vault-border bg-vault-surface p-4">
+      {/* <section className="rounded-sm border border-vault-border bg-vault-surface p-4">
         <div className="mb-3 flex flex-wrap items-end gap-3">
           <div className="min-w-65 flex-1">
             <label className="mb-1 block font-body text-[10px] uppercase tracking-widest text-muted-vault">
@@ -383,7 +411,7 @@ export function AdminKycClient() {
             ) : null}
           </div>
         )}
-      </section>
+      </section> */}
 
       <section className="space-y-3">
         {!isUnlocked ? (
@@ -454,7 +482,9 @@ export function AdminKycClient() {
                       <p className="font-body text-[11px] text-muted-vault">
                         Latest credential tx:{" "}
                         <a
-                          href={`${SOLANA_EXPLORER_TX_BASE}/${item.latestCredentialTxHash}?cluster=devnet`}
+                          href={getSolanaExplorerTxUrl(
+                            item.latestCredentialTxHash,
+                          )}
                           target="_blank"
                           rel="noreferrer"
                           className="underline"

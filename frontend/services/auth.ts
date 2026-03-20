@@ -5,12 +5,9 @@
  */
 
 import api from "./api";
+import { resetAuthState } from "@/store";
 import type { CredentialStatus } from "@/types";
-import {
-  setAccessToken,
-  setCredentialStatus,
-  clearAuthSession,
-} from "@/utils/session";
+import { setAccessToken, setCredentialStatus } from "@/utils/session";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -77,7 +74,7 @@ export async function signOut(): Promise<void> {
     await api.delete("/auth/session");
   } finally {
     if (typeof window !== "undefined") {
-      clearAuthSession();
+      resetAuthState();
     }
   }
 }

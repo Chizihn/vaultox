@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
+import { AxiosError } from "axios";
 import {
   ArrowRight,
   CheckCircle,
@@ -22,6 +23,7 @@ import { useSettlementProgress } from "@/hooks/useSettlementProgress";
 import { useMarketQuotesStream } from "@/hooks/useMarketQuotesStream";
 import api from "@/services/api";
 import { getCounterparties } from "@/services/compliance";
+import { getSolanaExplorerTxUrl } from "@/config/solana";
 
 type SettlementCalendarStatus = {
   jurisdiction: string;
@@ -46,6 +48,7 @@ export function SettlementsClient() {
     useState<SettlementCalendarStatus | null>(null);
   const [toInstitution, setToInstitution] = useState<Institution | null>(null);
   const [amount, setAmount] = useState("");
+  const [initiationError, setInitiationError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
@@ -56,8 +59,11 @@ export function SettlementsClient() {
     "USDAED",
   ]);
 
-  const { settlements: fetchedSettlements, initiateSettlement } =
-    useSettlements();
+  const {
+    settlements: fetchedSettlements,
+    initiateSettlement,
+    initiateMutation,
+  } = useSettlements();
   const { steps, isRunning, isComplete, totalTime, startSettlement, reset } =
     useSettlementProgress();
 
@@ -70,15 +76,17 @@ export function SettlementsClient() {
         if (ignore) return;
 
         setNetworkDirectory(
-          counterparties.map((entry) => ({
-            id: entry.wallet,
-            name: entry.institution_name,
-            jurisdiction: entry.jurisdiction,
-            jurisdictionFlag: entry.jurisdictionFlag,
-            tier: entry.tier,
-            city: "Unknown",
-            walletAddress: entry.wallet,
-          })),
+          counterparties
+            .filter((entry) => entry.status === "verified")
+            .map((entry) => ({
+              id: entry.wallet,
+              name: entry.institution_name,
+              jurisdiction: entry.jurisdiction,
+              jurisdictionFlag: entry.jurisdictionFlag,
+              tier: entry.tier,
+              city: "Unknown",
+              walletAddress: entry.wallet,
+            })),
         );
       } catch (error) {
         console.error("Failed to load counterparties", error);
@@ -154,7 +162,8 @@ export function SettlementsClient() {
 
   const handleInitiate = async () => {
     if (!fromInst || !toInstitution || numAmount <= 0) return;
-    
+    setInitiationError(null);
+
     try {
       // First initiate the transaction to get a signature
       const result = await initiateSettlement({
@@ -180,8 +189,33 @@ export function SettlementsClient() {
       setShowModal(true);
       // 'result' contains the signature return from the mutation
       await startSettlement(result?.signature);
-    } catch (e) {
-      console.error("Failed to initiate settlement", e);
+    } catch (error) {
+      if (error instanceof AxiosError) {
+        const responseMessage = error.response?.data?.message;
+        const message = Array.isArray(responseMessage)
+          ? responseMessage.join(", ")
+          : typeof responseMessage === "string"
+            ? responseMessage
+            : null;
+
+        if (error.response?.status === 404) {
+          setInitiationError(
+            message ??
+              "Selected counterparty is not credential-verified yet. Choose a verified institution and retry.",
+          );
+        } else {
+          setInitiationError(
+            message ?? "Failed to initiate settlement. Please try again.",
+          );
+        }
+      } else {
+        const message =
+          error instanceof Error && error.message
+            ? error.message
+            : "Failed to initiate settlement. Please try again.";
+        setInitiationError(message);
+      }
+      console.error("Failed to initiate settlement", error);
     }
   };
 
@@ -193,6 +227,9 @@ export function SettlementsClient() {
   };
 
   const handleAmountChange = (val: string) => {
+    if (initiationError) {
+      setInitiationError(null);
+    }
     const clean = val.replace(/[^0-9]/g, "");
     if (!clean) {
       setAmount("");
@@ -231,24 +268,6 @@ export function SettlementsClient() {
         </p>
       </motion.div>
 
-      {/* ── World Map ── */}
-      <section aria-label="Global settlement network">
-        <div className="overflow-hidden rounded-sm border border-vault-border">
-          <div className="flex items-center justify-between border-b border-vault-border px-4 py-3">
-            <span className="font-heading text-sm font-semibold text-text-primary">
-              Global Settlement Network
-            </span>
-            <div className="flex items-center gap-2">
-              <span className="size-1.5 animate-pulse rounded-full bg-teal" />
-              <span className="font-body text-[11px] text-muted-vault">
-                Live
-              </span>
-            </div>
-          </div>
-          <WorldMap arcs={liveArcs} className="aspect-3/1 w-full min-h-55" />
-        </div>
-      </section>
-
       {/* ── Initiate + History ── */}
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[420px_1fr]">
         {/* ── Initiate Transfer form ── */}
@@ -266,20 +285,25 @@ export function SettlementsClient() {
                 <label className="mb-1.5 block font-body text-[10px] uppercase tracking-widest text-muted-vault">
                   From Institution
                 </label>
-                  <Tooltip content="Your institutional profile and verified jurisdiction." position="right">
-                    <div className="flex items-center gap-3 rounded-sm border border-vault-border bg-vault-elevated px-4 py-3 cursor-help">
-                      <span className="text-xl">{fromInst?.jurisdictionFlag}</span>
-                      <div>
-                        <p className="font-heading text-sm text-text-primary">
-                          {fromInst?.name}
-                        </p>
-                        <p className="font-body text-[11px] text-muted-vault">
-                          {fromInst?.city}
-                        </p>
-                      </div>
-                      <CheckCircle className="ml-auto size-4 text-ok" />
+                <Tooltip
+                  content="Your institutional profile and verified jurisdiction."
+                  position="right"
+                >
+                  <div className="flex items-center gap-3 rounded-sm border border-vault-border bg-vault-elevated px-4 py-3 cursor-help">
+                    <span className="text-xl">
+                      {fromInst?.jurisdictionFlag}
+                    </span>
+                    <div>
+                      <p className="font-heading text-sm text-text-primary">
+                        {fromInst?.name}
+                      </p>
+                      <p className="font-body text-[11px] text-muted-vault">
+                        {fromInst?.city}
+                      </p>
                     </div>
-                  </Tooltip>
+                    <CheckCircle className="ml-auto size-4 text-ok" />
+                  </div>
+                </Tooltip>
               </div>
 
               {/* Arrow */}
@@ -302,12 +326,13 @@ export function SettlementsClient() {
                 <select
                   id="to-institution"
                   value={toInstitution?.id ?? ""}
-                  onChange={(e) =>
+                  onChange={(e) => {
+                    setInitiationError(null);
                     setToInstitution(
                       otherInstitutions.find((i) => i.id === e.target.value) ??
                         null,
-                    )
-                  }
+                    );
+                  }}
                   className="w-full rounded-sm border border-vault-border bg-vault-elevated px-4 py-3 font-body text-sm text-text-primary focus:border-gold/40 focus:outline-none"
                 >
                   <option value="">Select institution...</option>
@@ -327,24 +352,27 @@ export function SettlementsClient() {
                 >
                   Amount USDC
                 </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 font-body text-sm text-muted-vault">
-                      $
-                    </span>
-                    <Tooltip content="The total USDC amount to be transferred to the recipient." className="w-full">
-                      <input
-                        id="transfer-amount"
-                        type="text"
-                        value={amount}
-                        onChange={(e) => handleAmountChange(e.target.value)}
-                        placeholder="500,000"
-                        className="w-full rounded-sm border border-vault-border bg-vault-elevated py-3 pl-8 pr-16 font-body text-lg text-text-primary placeholder:text-muted-vault/40 focus:border-gold/40 focus:outline-none"
-                      />
-                    </Tooltip>
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 font-body text-xs text-muted-vault">
-                      USDC
-                    </span>
-                  </div>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 font-body text-sm text-muted-vault">
+                    $
+                  </span>
+                  <Tooltip
+                    content="The total USDC amount to be transferred to the recipient."
+                    className="w-full"
+                  >
+                    <input
+                      id="transfer-amount"
+                      type="text"
+                      value={amount}
+                      onChange={(e) => handleAmountChange(e.target.value)}
+                      placeholder="500,000"
+                      className="w-full rounded-sm border border-vault-border bg-vault-elevated py-3 pl-8 pr-16 font-body text-lg text-text-primary placeholder:text-muted-vault/40 focus:border-gold/40 focus:outline-none"
+                    />
+                  </Tooltip>
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 font-body text-xs text-muted-vault">
+                    USDC
+                  </span>
+                </div>
               </div>
 
               {/* FX + estimate */}
@@ -426,13 +454,29 @@ export function SettlementsClient() {
                 </div>
               )}
 
+              {initiationError && (
+                <div className="rounded-sm border border-warn/30 bg-warn/10 p-3">
+                  <p className="font-body text-xs text-warn">
+                    {initiationError}
+                  </p>
+                </div>
+              )}
+
               {/* CTA */}
               <button
                 onClick={handleInitiate}
-                disabled={!toInstitution || numAmount <= 0 || isRunning}
+                disabled={
+                  !toInstitution ||
+                  numAmount <= 0 ||
+                  isRunning ||
+                  initiateMutation.isPending
+                }
                 className={cn(
-                  "flex w-full items-center justify-center gap-2 rounded-sm py-3 font-heading text-sm font-semibold transition-all",
-                  toInstitution && numAmount > 0 && !isRunning
+                  "flex w-full items-center justify-center gap-2 rounded-sm py-3 font-heading text-sm font-semibold transition-all cursor-pointer",
+                  toInstitution &&
+                    numAmount > 0 &&
+                    !isRunning &&
+                    !initiateMutation.isPending
                     ? "bg-gold text-vault-base hover:bg-gold/90"
                     : "cursor-not-allowed bg-vault-elevated text-muted-vault",
                 )}
@@ -441,6 +485,11 @@ export function SettlementsClient() {
                   <>
                     <span className="size-4 animate-spin rounded-full border-2 border-vault-base/30 border-t-vault-base" />
                     Settling...
+                  </>
+                ) : initiateMutation.isPending ? (
+                  <>
+                    <span className="size-4 animate-spin rounded-full border-2 border-vault-base/30 border-t-vault-base" />
+                    Initiating...
                   </>
                 ) : (
                   <>
@@ -531,9 +580,13 @@ export function SettlementsClient() {
                         </span>
                       </div>
                     </td>
-                    <Tooltip content="Funds are atomically swapped or transferred via the settlement engine." position="right">
+                    <Tooltip
+                      content="Funds are atomically swapped or transferred via the settlement engine."
+                      position="right"
+                    >
                       <td className="px-5 py-3 font-heading text-xs text-text-primary cursor-help">
-                        {formatCurrency(s.amount, { compact: true })} {s.currency}
+                        {formatCurrency(s.amount, { compact: true })}{" "}
+                        {s.currency}
                       </td>
                     </Tooltip>
                     <td className="px-5 py-3">
@@ -549,7 +602,7 @@ export function SettlementsClient() {
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100">
                         <a
-                          href={`https://explorer.solana.com/tx/${s.txHash}?cluster=devnet`}
+                          href={getSolanaExplorerTxUrl(s.txHash)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="rounded-sm border border-vault-border p-1.5 text-muted-vault transition-colors hover:border-teal/30 hover:text-teal"
@@ -567,6 +620,24 @@ export function SettlementsClient() {
           </div>
         </section>
       </div>
+
+      {/* ── World Map ── */}
+      <section aria-label="Global settlement network">
+        <div className="overflow-hidden rounded-sm border border-vault-border">
+          <div className="flex items-center justify-between border-b border-vault-border px-4 py-3">
+            <span className="font-heading text-sm font-semibold text-text-primary">
+              Global Settlement Network
+            </span>
+            <div className="flex items-center gap-2">
+              <span className="size-1.5 animate-pulse rounded-full bg-teal" />
+              <span className="font-body text-[11px] text-muted-vault">
+                Live
+              </span>
+            </div>
+          </div>
+          <WorldMap arcs={liveArcs} className="aspect-3/1 w-full min-h-55" />
+        </div>
+      </section>
 
       {/* ── Settlement Progress Modal ── */}
       <SettlementProgressModal

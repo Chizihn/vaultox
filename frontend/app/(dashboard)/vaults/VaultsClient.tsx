@@ -22,6 +22,7 @@ import type {
 import { useAuthStore } from "@/store";
 import { useVaults } from "@/hooks/api/useVaults";
 import { YieldLadder } from "@/components/dashboard/YieldLadder";
+import { VaultActivityList } from "@/components/dashboard/VaultActivityList";
 import { DepositPanel } from "@/components/dashboard/DepositPanel";
 import { SparklineChart } from "@/components/dashboard/SparklineChart";
 import { TierBadge } from "@/components/shared/TierBadge";
@@ -36,7 +37,7 @@ const riskColors: Record<RiskRating, string> = {
   Medium: "text-gold bg-gold/10 border-gold/30",
   High: "text-warn bg-warn/10 border-warn/30",
 };
- 
+
 const getRiskDescription = (rating: RiskRating) => {
   switch (rating) {
     case "Low":
@@ -289,7 +290,9 @@ export function VaultsClient() {
                         </div>
 
                         <div className="flex shrink-0 items-center gap-3">
-                          <Tooltip content={getRiskDescription(strategy.riskRating)}>
+                          <Tooltip
+                            content={getRiskDescription(strategy.riskRating)}
+                          >
                             <span
                               className={cn(
                                 "rounded-sm border px-1.5 py-0.5 font-body text-[11px] uppercase cursor-help",
@@ -379,13 +382,15 @@ export function VaultsClient() {
                                       compact: true,
                                     }),
                                     color: "text-text-primary",
-                                    tooltip: "Total Value Locked in this strategy across all participating institutions.",
+                                    tooltip:
+                                      "Total Value Locked in this strategy across all participating institutions.",
                                   },
                                   {
                                     label: "Min Tier",
                                     value: `Tier ${strategy.minTier}`,
                                     color: "text-text-primary",
-                                    tooltip: "The minimum compliance credential level required to access this strategy.",
+                                    tooltip:
+                                      "The minimum compliance credential level required to access this strategy.",
                                   },
                                   position && {
                                     label: "Your Position",
@@ -407,7 +412,11 @@ export function VaultsClient() {
                                   .map(
                                     (stat) =>
                                       stat && (
-                                        <Tooltip key={stat.label} content={stat.tooltip} position="bottom">
+                                        <Tooltip
+                                          key={stat.label}
+                                          content={stat.tooltip}
+                                          position="bottom"
+                                        >
                                           <div className="cursor-help">
                                             <p className="font-body text-[10px] uppercase tracking-widest text-muted-vault">
                                               {stat.label}
@@ -547,6 +556,11 @@ export function VaultsClient() {
         <aside>
           <div className="sticky top-24 rounded-sm border border-vault-border bg-vault-surface p-5">
             <YieldLadder userTier={userTier} />
+
+            {/* Vault Activity List */}
+            <div className="mt-6 border-t border-vault-border pt-4">
+              <VaultActivityList />
+            </div>
 
             {/* Summary positions */}
             {safePositions.length > 0 && (

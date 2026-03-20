@@ -23,7 +23,7 @@ export class ReportsService {
   async getReports(walletAddress: string) {
     const rows = await this.prisma.report.findMany({
       where: { walletAddress },
-      orderBy: { createdAt: "desc" },
+      orderBy: { createdAt: "desc" }, // Report model still has createdAt
     });
     return rows.map((r) => this.toDto(r));
   }
@@ -75,7 +75,7 @@ export class ReportsService {
 
         this.prisma.kycRequest.findFirst({
           where: { walletAddress },
-          orderBy: { createdAt: "desc" },
+          orderBy: { upgradeCreatedAt: "desc" },
         }),
       ]);
 
@@ -119,12 +119,21 @@ export class ReportsService {
       .text(`${dto.framework} Compliance Report`, { align: "center" })
       .fontSize(10)
       .fillColor(colors.muted)
-      .text(`${from.toISOString().split("T")[0]} to ${to.toISOString().split("T")[0]}`, { align: "center" })
+      .text(
+        `${from.toISOString().split("T")[0]} to ${to.toISOString().split("T")[0]}`,
+        { align: "center" },
+      )
       .moveDown(3);
 
     // Institution Profile
-    doc.fontSize(14).fillColor(colors.primary).text("Institution Profile").moveDown(0.5);
-    doc.fontSize(10).fillColor(colors.text)
+    doc
+      .fontSize(14)
+      .fillColor(colors.primary)
+      .text("Institution Profile")
+      .moveDown(0.5);
+    doc
+      .fontSize(10)
+      .fillColor(colors.text)
       .text(`Institution: ${kycRequest?.institutionName ?? "Unknown"}`)
       .text(`Wallet Address: ${walletAddress}`)
       .text(`Jurisdiction: ${kycRequest?.jurisdiction ?? "Unknown"}`)
@@ -132,54 +141,112 @@ export class ReportsService {
       .moveDown(2);
 
     // Compliance Summary
-    doc.fontSize(14).fillColor(colors.primary).text("Compliance Summary").moveDown(0.5);
-    doc.fontSize(10).fillColor(colors.text)
+    doc
+      .fontSize(14)
+      .fillColor(colors.primary)
+      .text("Compliance Summary")
+      .moveDown(0.5);
+    doc
+      .fontSize(10)
+      .fillColor(colors.text)
       .text(`Total AML Screenings: ${amlScreenings.length}`)
-      .text(`AML Flags Raised: ${amlScreenings.filter(s => s.status === "flagged").length}`)
-      .text(`Travel Rule Compliant Settlements: ${settlements.filter(s => s.travelRulePayload !== null).length}`)
+      .text(
+        `AML Flags Raised: ${amlScreenings.filter((s) => s.status === "flagged").length}`,
+      )
+      .text(
+        `Travel Rule Compliant Settlements: ${settlements.filter((s) => s.travelRulePayload !== null).length}`,
+      )
       .text(`Total Audit Events log: ${auditEvents.length}`)
       .moveDown(2);
 
     // Settlement Summary
     if (includeSettlements && settlements.length > 0) {
       doc.addPage();
-      doc.fontSize(14).fillColor(colors.primary).text("Settlement Activity").moveDown(0.5);
+      doc
+        .fontSize(14)
+        .fillColor(colors.primary)
+        .text("Settlement Activity")
+        .moveDown(0.5);
 
-      const successRate = ((settlements.filter(s => s.status === "completed").length / settlements.length) * 100).toFixed(2);
-      
-      doc.fontSize(10).fillColor(colors.text)
+      const successRate = (
+        (settlements.filter((s) => s.status === "completed").length /
+          settlements.length) *
+        100
+      ).toFixed(2);
+
+      doc
+        .fontSize(10)
+        .fillColor(colors.text)
         .text(`Total Settlements: ${settlements.length}`)
-        .text(`Completed: ${settlements.filter(s => s.status === "completed").length} (${successRate}%)`)
-        .text(`Pending: ${settlements.filter(s => s.status === "pending").length}`)
-        .text(`Failed: ${settlements.filter(s => s.status === "failed").length}`)
-        .text(`Total Volume (USDC): $${settlements.filter(s => s.status === "completed").reduce((acc, s) => acc + s.amount, 0).toLocaleString()}`)
+        .text(
+          `Completed: ${settlements.filter((s) => s.status === "completed").length} (${successRate}%)`,
+        )
+        .text(
+          `Pending: ${settlements.filter((s) => s.status === "pending").length}`,
+        )
+        .text(
+          `Failed: ${settlements.filter((s) => s.status === "failed").length}`,
+        )
+        .text(
+          `Total Volume (USDC): $${settlements
+            .filter((s) => s.status === "completed")
+            .reduce((acc, s) => acc + s.amount, 0)
+            .toLocaleString()}`,
+        )
         .moveDown(1.5);
 
       // Table Header
-      doc.fontSize(10).fillColor(colors.muted)
+      doc
+        .fontSize(10)
+        .fillColor(colors.muted)
         .text("Date", 50, doc.y, { width: 100, continued: true })
         .text("From", 150, doc.y, { width: 100, continued: true })
         .text("To", 250, doc.y, { width: 100, continued: true })
         .text("Amount (USDC)", 350, doc.y, { width: 100, continued: true })
         .text("Status", 450, doc.y);
-      
-      doc.moveTo(50, doc.y + 5).lineTo(550, doc.y + 5).strokeColor(colors.muted).stroke().moveDown(1);
+
+      doc
+        .moveTo(50, doc.y + 5)
+        .lineTo(550, doc.y + 5)
+        .strokeColor(colors.muted)
+        .stroke()
+        .moveDown(1);
 
       // Table Rows
       doc.fillColor(colors.text);
       let count = 0;
       for (const s of settlements) {
-        if (count >= 15) { // Pagination protection for large lists
-            doc.text("... and more records truncated for brevity.", 50, doc.y);
-            break;
+        if (count >= 15) {
+          // Pagination protection for large lists
+          doc.text("... and more records truncated for brevity.", 50, doc.y);
+          break;
         }
         const date = s.createdAt.toISOString().split("T")[0];
         doc
           .text(date, 50, doc.y, { width: 100, continued: true })
-          .text((s.fromInstitutionName || "Unknown").substring(0, 15), 150, doc.y, { width: 100, continued: true })
-          .text((s.toInstitutionName || "Unknown").substring(0, 15), 250, doc.y, { width: 100, continued: true })
-          .text(Number(s.amount).toLocaleString(), 350, doc.y, { width: 100, continued: true })
-          .fillColor(s.status === "completed" ? colors.ok : s.status === "failed" ? colors.warn : colors.text)
+          .text(
+            (s.fromInstitutionName || "Unknown").substring(0, 15),
+            150,
+            doc.y,
+            { width: 100, continued: true },
+          )
+          .text(
+            (s.toInstitutionName || "Unknown").substring(0, 15),
+            250,
+            doc.y,
+            { width: 100, continued: true },
+          )
+          .text(Number(s.amount).toLocaleString(), 350, doc.y, {
+            width: 100,
+            continued: true,
+          })
+          .fillColor(
+            s.status === "completed"
+              ? colors.ok
+              : s.status === "failed"
+                ? colors.warn
+                : colors.text,
+          )
           .text(s.status, 450, doc.y);
         doc.fillColor(colors.text); // reset
         doc.moveDown(0.5);
@@ -188,32 +255,45 @@ export class ReportsService {
       doc.moveDown(2);
     }
 
-    // Audit Log 
+    // Audit Log
     if (includeAuditLog && auditEvents.length > 0) {
-        doc.addPage();
-        doc.fontSize(14).fillColor(colors.primary).text("Audit Trail").moveDown(0.5);
-        
-        let count = 0;
-        for (const e of auditEvents) {
-            if (count >= 20) {
-                doc.fontSize(10).fillColor(colors.muted).text("... additional audit events truncated.");
-                break;
-            }
-            doc.fontSize(8).fillColor(colors.muted).text(e.createdAt.toISOString().replace("T", " ").substring(0, 19));
-            doc.fontSize(10).fillColor(colors.text).text(`[${e.eventType}] ${e.description}`);
-            if (e.txHash) {
-                doc.fontSize(8).fillColor(colors.muted).text(`Tx: ${e.txHash}`);
-            }
-            doc.moveDown(0.5);
-            count++;
+      doc.addPage();
+      doc
+        .fontSize(14)
+        .fillColor(colors.primary)
+        .text("Audit Trail")
+        .moveDown(0.5);
+
+      let count = 0;
+      for (const e of auditEvents) {
+        if (count >= 20) {
+          doc
+            .fontSize(10)
+            .fillColor(colors.muted)
+            .text("... additional audit events truncated.");
+          break;
         }
+        doc
+          .fontSize(8)
+          .fillColor(colors.muted)
+          .text(e.createdAt.toISOString().replace("T", " ").substring(0, 19));
+        doc
+          .fontSize(10)
+          .fillColor(colors.text)
+          .text(`[${e.eventType}] ${e.description}`);
+        if (e.txHash) {
+          doc.fontSize(8).fillColor(colors.muted).text(`Tx: ${e.txHash}`);
+        }
+        doc.moveDown(0.5);
+        count++;
+      }
     }
 
     doc.end();
 
     const fileBuffer = await buildPdf;
     const fileName = `${dto.framework}_${dto.period.from}_${dto.period.to}_${Date.now()}.pdf`;
-    
+
     // ── Upload to Cloudinary (or store inline if not configured) ─────────
     let downloadUrl: string | null = null;
     let fileSizeBytes = fileBuffer.length;

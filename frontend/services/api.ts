@@ -1,6 +1,6 @@
 import axios from "axios";
-import { useAuthStore } from "../store";
-import { getAccessToken, clearAuthSession } from "@/utils/session";
+import { resetAuthState, useAuthStore } from "../store";
+import { getAccessToken } from "@/utils/session";
 
 export interface PaginatedResponse<T> {
   data?: T[];
@@ -39,10 +39,17 @@ api.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       if (typeof window !== "undefined") {
-        clearAuthSession();
+        resetAuthState();
         window.dispatchEvent(new Event("vaultox:auth:expired"));
       } else {
-        useAuthStore.getState().disconnect();
+        useAuthStore.setState({
+          isConnected: false,
+          institution: null,
+          walletAddress: null,
+          tier: null,
+          credentialStatus: "unregistered",
+          jwt: null,
+        });
       }
     }
     return Promise.reject(error);

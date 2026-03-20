@@ -3,7 +3,10 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
+  Logger,
 } from "@nestjs/common";
+import { PublicKey } from "@solana/web3.js";
+import { getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { SolanaService } from "../solana/solana.service";
 import { ComplianceService } from "../compliance/compliance.service";
 import { KytService } from "../kyt/kyt.service";
@@ -14,6 +17,122 @@ import { PrismaService } from "../prisma/prisma.service";
 
 @Injectable()
 export class SettlementsService {
+  private readonly logger = new Logger(SettlementsService.name);
+  private static readonly TOKEN_ACCOUNT_SIZE = 165;
+
+  private async assertInitiateSettlementAccountsExist(
+    initiatorWallet: string,
+    receiverWallet: string,
+  ) {
+    const initiator = new PublicKey(initiatorWallet);
+    const initiatorUsdcAta = getAssociatedTokenAddressSync(
+      this.solanaService.usdcMint,
+      initiator,
+    );
+    const initiatorCredentialPda =
+      this.solanaService.getCredentialPda(initiatorWallet);
+    const receiverCredentialPda =
+      this.solanaService.getCredentialPda(receiverWallet);
+
+    const checks: Array<{ name: string; address: PublicKey }> = [
+      { name: "usdcMint", address: this.solanaService.usdcMint },
+      { name: "initiatorWallet", address: initiator },
+      { name: "initiatorUsdcAta", address: initiatorUsdcAta },
+      { name: "initiatorCredentialPda", address: initiatorCredentialPda },
+      { name: "receiverCredentialPda", address: receiverCredentialPda },
+    ];
+
+    const infos = await this.solanaService.connection.getMultipleAccountsInfo(
+      checks.map((entry) => entry.address),
+      "processed",
+    );
+
+    const missing = checks
+      .filter((_, index) => !infos[index])
+      .map((entry) => ({
+        name: entry.name,
+        address: entry.address.toBase58(),
+      }));
+
+    const initiatorWalletExists = Boolean(infos[1]);
+    if (!initiatorWalletExists) {
+      this.logger.error(
+        `[initiateSettlement] initiator wallet account not found on cluster initiator=${initiatorWallet}`,
+      );
+      throw new BadRequestException({
+        message:
+          "Initiator wallet is not initialized on devnet. Fund it with SOL first (e.g. run `solana airdrop 1 Fn5oZsN9gYS6RTiBvstPK1kjz9Waxo9m7rFFsY1UFUug --url devnet`).",
+        phase: "account_validation",
+        missingAccounts: [
+          { name: "initiatorWallet", address: initiator.toBase58() },
+        ],
+      });
+    }
+
+    const initiatorLamports = infos[1]?.lamports ?? 0;
+    const settlementRent =
+      await this.solanaService.connection.getMinimumBalanceForRentExemption(
+        558,
+      );
+    const escrowTokenRent =
+      await this.solanaService.connection.getMinimumBalanceForRentExemption(
+        SettlementsService.TOKEN_ACCOUNT_SIZE,
+      );
+    const estimatedTxFees = 25_000;
+    const requiredLamports = settlementRent + escrowTokenRent + estimatedTxFees;
+
+    if (initiatorLamports < requiredLamports) {
+      const availableSol = initiatorLamports / 1_000_000_000;
+      const requiredSol = requiredLamports / 1_000_000_000;
+      this.logger.error(
+        `[initiateSettlement] insufficient SOL for payer rent+fees initiator=${initiatorWallet} availableLamports=${initiatorLamports} requiredLamports=${requiredLamports}`,
+      );
+      throw new BadRequestException({
+        message: `Insufficient SOL for settlement account creation and fees. Available ${availableSol.toFixed(6)} SOL, required at least ${requiredSol.toFixed(6)} SOL.`,
+        phase: "account_validation",
+        payerBalanceLamports: initiatorLamports,
+        requiredLamports,
+      });
+    }
+
+    if (missing.length > 0) {
+      this.logger.error(
+        `[initiateSettlement] required accounts missing initiator=${initiatorWallet} receiver=${receiverWallet} missing=${JSON.stringify(missing)}`,
+      );
+      throw new BadRequestException({
+        message: "Settlement account validation failed before preflight",
+        phase: "account_validation",
+        missingAccounts: missing,
+      });
+    }
+  }
+
+  private async simulatePreflightSafe(tx: any) {
+    try {
+      try {
+        return await (this.solanaService.connection as any).simulateTransaction(
+          tx,
+          {
+            sigVerify: false,
+            commitment: "processed",
+          },
+        );
+      } catch (error) {
+        this.logger.warn(
+          `[simulatePreflightSafe] primary simulateTransaction signature failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+        return await (this.solanaService.connection as any).simulateTransaction(
+          tx,
+        );
+      }
+    } catch (error) {
+      this.logger.warn(
+        `[simulatePreflightSafe] simulation unavailable: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return null;
+    }
+  }
+
   constructor(
     private readonly solanaService: SolanaService,
     private readonly complianceService: ComplianceService,
@@ -120,6 +239,125 @@ export class SettlementsService {
   }
 
   async initiateSettlement(walletAddress: string, data: any) {
+    this.logger.log(
+      `[initiateSettlement] start initiator=${walletAddress} receiver=${data?.receiver?.walletAddress} amount=${data?.amount}`,
+    );
+
+    // 0. Idempotency check — prevent duplicate settlements from rapid clicks
+    // Look for a pending/settling settlement with the same initiator, receiver, and amount
+    // created within the last 5 minutes
+    const recentDuplicate = await this.prisma.settlement.findFirst({
+      where: {
+        initiatorWallet: walletAddress,
+        receiverWallet: data.receiver.walletAddress,
+        amount: String(data.amount),
+        status: { in: ["pending", "settling"] },
+        createdAt: {
+          gte: new Date(Date.now() - 5 * 60 * 1000),
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (recentDuplicate) {
+      this.logger.log(
+        `[initiateSettlement] duplicate pending settlement found id=${recentDuplicate.id}; rebuilding unsigned tx with fresh blockhash`,
+      );
+
+      // Refresh unsigned transaction so retries don't reuse stale blockhash
+      const senderContext =
+        await this.complianceService.resolveCredentialStatus(walletAddress);
+      const normalizedTravelRule = data.travelRule ?? {
+        originatorName:
+          senderContext.institution?.name ?? "Unknown Institution",
+        originatorAddress: `${senderContext.institution?.city ?? "Unknown"}, ${senderContext.institution?.jurisdiction ?? "UNK"}`,
+        originatorAccountId: walletAddress,
+        beneficiaryName: data.receiver.institutionName ?? "Counterparty",
+        beneficiaryAddress: `${data.receiver.jurisdiction ?? "Unknown"}`,
+        beneficiaryAccountId: data.receiver.walletAddress,
+        purposeCode: "OTHR",
+      };
+
+      const complianceHash = `tr_${Date.now()}`;
+      const settlementReference = this.buildSettlementReference(
+        walletAddress,
+        data.receiver.walletAddress,
+        data.amount,
+      );
+
+      await this.assertInitiateSettlementAccountsExist(
+        walletAddress,
+        data.receiver.walletAddress,
+      );
+
+      const { tx, feeAmount, settlementSeedHex } =
+        await this.solanaService.buildInitiateSettlementTransaction({
+          initiatorWallet: walletAddress,
+          receiverWallet: data.receiver.walletAddress,
+          amount: data.amount,
+          feeAmount: "0",
+          settlementReference,
+          complianceHash,
+          travelRule: {
+            originatorName: String(normalizedTravelRule.originatorName),
+            originatorAccountId: String(
+              normalizedTravelRule.originatorAccountId,
+            ),
+            originatorAddress: String(normalizedTravelRule.originatorAddress),
+            beneficiaryName: String(normalizedTravelRule.beneficiaryName),
+            beneficiaryAddress: String(normalizedTravelRule.beneficiaryAddress),
+            beneficiaryAccountId: String(
+              normalizedTravelRule.beneficiaryAccountId,
+            ),
+            purposeCode: String(normalizedTravelRule.purposeCode),
+          },
+        });
+
+      const simulation = await this.simulatePreflightSafe(tx);
+
+      if (simulation?.value?.err) {
+        this.logger.error(
+          `[initiateSettlement] duplicate preflight failed settlementId=${recentDuplicate.id} err=${JSON.stringify(simulation.value.err)} logs=${JSON.stringify(simulation.value.logs ?? [])}`,
+        );
+        throw new BadRequestException({
+          message: "Settlement preflight failed before signing",
+          phase: "duplicate_preflight",
+          simulationError: simulation.value.err,
+          simulationLogs: simulation.value.logs ?? [],
+        });
+      }
+
+      this.logger.log(
+        `[initiateSettlement] duplicate preflight ${simulation ? "passed" : "skipped"} settlementId=${recentDuplicate.id}`,
+      );
+
+      const refreshedUnsignedTransaction = tx
+        .serialize({ requireAllSignatures: false })
+        .toString("base64");
+
+      await this.prisma.settlement.update({
+        where: { id: recentDuplicate.id },
+        data: {
+          unsignedTransaction: refreshedUnsignedTransaction,
+          complianceHash: `${complianceHash}:${settlementSeedHex}`,
+          travelRulePayload: normalizedTravelRule,
+        },
+      });
+
+      return {
+        settlementId: recentDuplicate.id,
+        unsignedTransaction: refreshedUnsignedTransaction,
+        estimatedFee: feeAmount,
+        status: "pending_signature" as const,
+        debug: {
+          phase: "duplicate_refresh",
+          settlementSeedHex,
+          recentBlockhash: tx.recentBlockhash,
+          cluster: process.env.SOLANA_CLUSTER ?? "unknown",
+        },
+      };
+    }
+
     // 1. Validate Travel Rule payload
     if (data.travelRule) {
       await this.validateTravelRule(data.travelRule);
@@ -173,6 +411,36 @@ export class SettlementsService {
     }
 
     // 4. Assemble tx via settlement program instruction
+    const requestedAmount = Number(data.amount);
+    if (!Number.isFinite(requestedAmount) || requestedAmount <= 0) {
+      throw new BadRequestException("Settlement amount must be greater than 0");
+    }
+
+    const initiator = new PublicKey(walletAddress);
+    const initiatorUsdcAta = getAssociatedTokenAddressSync(
+      this.solanaService.usdcMint,
+      initiator,
+    );
+
+    let initiatorUsdcBalanceUi = 0;
+    try {
+      const tokenBalance =
+        await this.solanaService.connection.getTokenAccountBalance(
+          initiatorUsdcAta,
+        );
+      initiatorUsdcBalanceUi = Number(tokenBalance.value.uiAmountString ?? "0");
+    } catch {
+      throw new BadRequestException(
+        "Initiator USDC token account not found on devnet. Fund your wallet with devnet USDC first.",
+      );
+    }
+
+    if (initiatorUsdcBalanceUi < requestedAmount) {
+      throw new BadRequestException(
+        `Insufficient USDC balance. Required ${requestedAmount}, available ${initiatorUsdcBalanceUi}.`,
+      );
+    }
+
     const normalizedTravelRule = data.travelRule ?? {
       originatorName: senderContext.institution?.name ?? "Unknown Institution",
       originatorAddress: `${senderContext.institution?.city ?? "Unknown"}, ${senderContext.institution?.jurisdiction ?? "UNK"}`,
@@ -187,6 +455,11 @@ export class SettlementsService {
       walletAddress,
       data.receiver.walletAddress,
       data.amount,
+    );
+
+    await this.assertInitiateSettlementAccountsExist(
+      walletAddress,
+      data.receiver.walletAddress,
     );
 
     const { tx, feeAmount, settlementSeedHex } =
@@ -209,6 +482,24 @@ export class SettlementsService {
           purposeCode: String(normalizedTravelRule.purposeCode),
         },
       });
+
+    const simulation = await this.simulatePreflightSafe(tx);
+
+    if (simulation?.value?.err) {
+      this.logger.error(
+        `[initiateSettlement] preflight failed initiator=${walletAddress} err=${JSON.stringify(simulation.value.err)} logs=${JSON.stringify(simulation.value.logs ?? [])}`,
+      );
+      throw new BadRequestException({
+        message: "Settlement preflight failed before signing",
+        phase: "preflight",
+        simulationError: simulation.value.err,
+        simulationLogs: simulation.value.logs ?? [],
+      });
+    }
+
+    this.logger.log(
+      `[initiateSettlement] preflight ${simulation ? "passed" : "skipped"} initiator=${walletAddress} receiver=${data.receiver.walletAddress}`,
+    );
 
     const unsignedTransaction = tx
       .serialize({ requireAllSignatures: false })
@@ -255,7 +546,7 @@ export class SettlementsService {
     try {
       const senderRequest = await this.prisma.kycRequest.findFirst({
         where: { walletAddress },
-        orderBy: { createdAt: "desc" },
+        orderBy: { upgradeCreatedAt: "desc" },
       });
       if (senderRequest?.email) {
         await this.notificationsService.notifySettlementInitiated({
@@ -275,6 +566,12 @@ export class SettlementsService {
       unsignedTransaction,
       estimatedFee: feeAmount,
       status: "pending_signature",
+      debug: {
+        phase: "created",
+        settlementSeedHex,
+        recentBlockhash: tx.recentBlockhash,
+        cluster: process.env.SOLANA_CLUSTER ?? "unknown",
+      },
     };
   }
 
@@ -310,7 +607,7 @@ export class SettlementsService {
       try {
         const initiatorRequest = await this.prisma.kycRequest.findFirst({
           where: { walletAddress: settlement.initiatorWallet },
-          orderBy: { createdAt: "desc" },
+          orderBy: { upgradeCreatedAt: "desc" },
         });
         if (initiatorRequest?.email) {
           await this.notificationsService.notifySettlementFailed({
@@ -358,7 +655,7 @@ export class SettlementsService {
       try {
         const initiatorRequest = await this.prisma.kycRequest.findFirst({
           where: { walletAddress: updated.initiatorWallet },
-          orderBy: { createdAt: "desc" },
+          orderBy: { upgradeCreatedAt: "desc" },
         });
         if (initiatorRequest?.email) {
           await this.notificationsService.notifySettlementCompleted({

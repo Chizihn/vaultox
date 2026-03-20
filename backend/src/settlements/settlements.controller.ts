@@ -53,6 +53,13 @@ export class SettlementsController {
     return this.settlementsService.getTravelRulePayload(wallet, id);
   }
 
+  @Get("transactions/status")
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  getTransactionStatus(@Query("signature") signature?: string) {
+    return this.settlementsService.getTransactionStatus(signature ?? "");
+  }
+
   @Get(":id")
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
@@ -80,13 +87,6 @@ export class SettlementsController {
       id,
       body.signature ?? "",
     );
-  }
-
-  @Get("transactions/status")
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  getTransactionStatus(@Query("signature") signature?: string) {
-    return this.settlementsService.getTransactionStatus(signature ?? "");
   }
 
   @Post("travel-rule/validate")
