@@ -54,7 +54,10 @@ export const useVaults = () => {
       throw new Error("Backend did not return an unsigned transaction.");
     }
 
-    if (status !== "connected" || !wallet) {
+    // HACKATHON FALLBACK: We removed `status !== 'connected'` check here because 
+    // the wallet adapter status closure occasionally goes stale in React Query mutations.
+    // As long as `walletActions.sendTransaction` is available, the wallet is actually connected.
+    if (!wallet && typeof walletActions?.sendTransaction !== "function") {
       throw new Error("Connect a Solana wallet to submit this transaction.");
     }
 
@@ -64,7 +67,7 @@ export const useVaults = () => {
       typeof walletActions.sendTransaction
     >[0];
 
-    const signature = wallet.sendTransaction
+    const signature = wallet?.sendTransaction
       ? await wallet.sendTransaction(sendableTransaction, {
           commitment: "confirmed",
         })

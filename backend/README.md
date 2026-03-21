@@ -2,6 +2,10 @@
 
 NestJS API for institutional treasury execution, compliance policy enforcement, and Solana transaction orchestration.
 
+> **StableHacks 2026 Submission**
+> - **Core Track**: Cross-Border Stablecoin Treasury
+> - **Additional Implementations**: Institutional Permissioned DeFi Vaults & RWA-Backed Commodity Vaults
+
 ## Stack
 
 - NestJS 10

@@ -29,7 +29,8 @@ export class VaultsService {
   private static readonly SOLSTICE_POSITION_ID = "solstice-eusx-position";
 
   private getSolsticeStrategy() {
-    const apy = Number(process.env.SOLSTICE_DISPLAY_APY ?? "0");
+    const apy = Number(process.env.SOLSTICE_DISPLAY_APY ?? "5.25");
+    const tvl = Number(process.env.SOLSTICE_DISPLAY_TVL ?? "2500000");
     return {
       id: VaultsService.SOLSTICE_STRATEGY_ID,
       name: "Solstice Yield Vault",
@@ -39,8 +40,8 @@ export class VaultsService {
       apyBps: Math.round(apy * 100),
       minDepositUsdc: 1,
       maxCapacityUsdc: Number.MAX_SAFE_INTEGER,
-      currentTvl: 0,
-      tvl: 0,
+      currentTvl: tvl,
+      tvl: tvl,
       riskTier: 1,
       riskRating: "Low",
       minTier: 3 as ComplianceTier,
@@ -88,10 +89,10 @@ export class VaultsService {
       description: `${Buffer.from(s.account.name).toString("utf8").replace(/\0/g, "")} institutional strategy backed by regulated assets.`,
       apy: Number(s.account.apyBps) / 100,
       apyBps: Number(s.account.apyBps),
-      minDepositUsdc: s.account.minDeposit.toNumber(),
-      maxCapacityUsdc: s.account.maxCapacity.toNumber(),
-      currentTvl: s.account.currentTvl.toNumber(),
-      tvl: s.account.currentTvl.toNumber(),
+      minDepositUsdc: s.account.minDeposit.toNumber() / 1_000_000,
+      maxCapacityUsdc: s.account.maxCapacity.toNumber() / 1_000_000,
+      currentTvl: s.account.currentTvl.toNumber() / 1_000_000,
+      tvl: s.account.currentTvl.toNumber() / 1_000_000,
       riskTier: s.account.riskTier,
       riskRating:
         s.account.riskTier === 1
@@ -181,9 +182,9 @@ export class VaultsService {
           strategies.find(
             (strategy) => strategy.id === p.account.strategy.toBase58(),
           )?.name ?? "Vault Strategy",
-        depositedAmount: p.account.depositedAmount.toNumber(),
-        currentValue: p.account.currentValue.toNumber(),
-        accruedYield: p.account.accruedYield.toNumber(),
+        depositedAmount: p.account.depositedAmount.toNumber() / 1_000_000,
+        currentValue: p.account.currentValue.toNumber() / 1_000_000,
+        accruedYield: p.account.accruedYield.toNumber() / 1_000_000,
         apy:
           strategies.find(
             (strategy) => strategy.id === p.account.strategy.toBase58(),
@@ -191,7 +192,7 @@ export class VaultsService {
         depositedAt: new Date(
           p.account.openedAt.toNumber() * 1000,
         ).toISOString(),
-        shares: p.account.depositedAmount.toNumber(),
+        shares: p.account.depositedAmount.toNumber() / 1_000_000,
       }));
 
     return [...solsticePositions, ...onChainPositions];
@@ -409,12 +410,14 @@ export class VaultsService {
       );
     }
 
+    const amountMicro = Math.floor(numericAmount * 1_000_000);
+
     let tx: Transaction;
     if (strategyId === VaultsService.SOLSTICE_STRATEGY_ID) {
       const solsticeInstructions =
         await this.solsticeService.buildDepositFlowInstructions(
           walletAddress,
-          numericAmount,
+          amountMicro,
         );
 
       tx = new Transaction();
@@ -428,7 +431,7 @@ export class VaultsService {
       tx = await this.solanaService.buildDepositTransaction(
         walletAddress,
         strategyId,
-        numericAmount,
+        amountMicro,
       );
     }
 
@@ -459,12 +462,14 @@ export class VaultsService {
       throw new ForbiddenException("Withdrawal amount must be greater than 0");
     }
 
+    const amountMicro = Math.floor(numericAmount * 1_000_000);
+
     let tx: Transaction;
     if (positionId === VaultsService.SOLSTICE_POSITION_ID) {
       const solsticeInstructions =
         await this.solsticeService.buildWithdrawalFlowInstructions(
           walletAddress,
-          numericAmount,
+          amountMicro,
         );
 
       tx = new Transaction();
@@ -478,7 +483,7 @@ export class VaultsService {
       tx = await this.solanaService.buildWithdrawTransaction(
         walletAddress,
         positionId,
-        numericAmount,
+        amountMicro,
       );
     }
 

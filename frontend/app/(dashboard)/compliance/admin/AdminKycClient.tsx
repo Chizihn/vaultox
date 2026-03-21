@@ -52,6 +52,7 @@ import { getSolanaExplorerTxUrl } from "@/config/solana";
 
 export function AdminKycClient() {
   const [adminKey, setAdminKey] = useState("");
+  const [resyncWalletsInput, setResyncWalletsInput] = useState<string>("");
   const [debouncedAdminKey, setDebouncedAdminKey] = useState("");
   const [validatedAdminKey, setValidatedAdminKey] = useState<string | null>(
     null,
@@ -251,13 +252,27 @@ export function AdminKycClient() {
     <div className="space-y-6">
       {isUnlocked && (
         <section className="rounded-sm border border-vault-border bg-vault-surface p-4">
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center">
+            <input
+              type="text"
+              placeholder="Wallet addresses (comma-separated, optional)"
+              className="w-full md:w-96 rounded-sm border border-vault-border bg-vault-elevated px-3 py-2.5 font-code text-xs text-text-primary focus:border-gold/40 focus:outline-none"
+              value={resyncWalletsInput}
+              onChange={(e) => setResyncWalletsInput(e.target.value)}
+            />
             <button
               onClick={async () => {
                 setLoading(true);
                 setError(null);
                 try {
-                  await resyncKycDbFromChainAdmin(normalizedInputKey);
+                  const wallets = resyncWalletsInput
+                    .split(",")
+                    .map((w: string) => w.trim())
+                    .filter(Boolean);
+                  await resyncKycDbFromChainAdmin(
+                    normalizedInputKey,
+                    wallets.length > 0 ? wallets : undefined,
+                  );
                   await refreshQueue();
                 } catch {
                   setError("Failed to resync DB from on-chain credentials.");
@@ -271,7 +286,8 @@ export function AdminKycClient() {
               {loading ? "Resyncing..." : "Resync DB from On-Chain Credentials"}
             </button>
             <span className="font-body text-xs text-muted-vault">
-              Use this to restore missing KYC records after DB reset.
+              Enter wallet addresses for targeted resync, or leave blank for
+              full DB resync.
             </span>
           </div>
         </section>
@@ -282,7 +298,6 @@ export function AdminKycClient() {
           Review pending institutions and issue on-chain credentials.
         </p>
       </div>
-
       <section className="rounded-sm border border-vault-border bg-vault-surface p-4">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto] md:items-end">
           <div>
@@ -353,7 +368,6 @@ export function AdminKycClient() {
           </p>
         )}
       </section>
-
       {/* <section className="rounded-sm border border-vault-border bg-vault-surface p-4">
         <div className="mb-3 flex flex-wrap items-end gap-3">
           <div className="min-w-65 flex-1">
@@ -412,7 +426,6 @@ export function AdminKycClient() {
           </div>
         )}
       </section> */}
-
       <section className="space-y-3">
         {!isUnlocked ? (
           <div className="rounded-sm border border-vault-border bg-vault-surface p-5 font-body text-xs text-muted-vault">

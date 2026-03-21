@@ -247,6 +247,31 @@ pub struct ProcessYield<'info> {
 pub mod handler {
     use super::*;
 
+    #[inline(never)]
+    fn do_transfer<'info>(
+        token_program: AccountInfo<'info>,
+        from: AccountInfo<'info>,
+        to: AccountInfo<'info>,
+        authority: AccountInfo<'info>,
+        amount: u64,
+    ) -> Result<()> {
+        let cpi_accounts = Transfer { from, to, authority };
+        token::transfer(CpiContext::new(token_program, cpi_accounts), amount)
+    }
+
+    #[inline(never)]
+    fn do_transfer_with_signer<'info>(
+        token_program: AccountInfo<'info>,
+        from: AccountInfo<'info>,
+        to: AccountInfo<'info>,
+        authority: AccountInfo<'info>,
+        amount: u64,
+        signer_seeds: &[&[&[u8]]],
+    ) -> Result<()> {
+        let cpi_accounts = Transfer { from, to, authority };
+        token::transfer(CpiContext::new_with_signer(token_program, cpi_accounts, signer_seeds), amount)
+    }
+
     /// Create a new yield strategy. Only callable by authority.
     pub fn initialize_strategy(
         ctx: Context<InitializeStrategy>,
@@ -285,13 +310,11 @@ pub mod handler {
         require!(amount >= strategy.min_deposit, VaultError::BelowMinimumDeposit);
 
         // Transfer USDC from institution → strategy vault
-        let cpi_accounts = Transfer {
-            from:      ctx.accounts.institution_token_account.to_account_info(),
-            to:        ctx.accounts.vault_token_account.to_account_info(),
-            authority: ctx.accounts.institution_wallet.to_account_info(),
-        };
-        token::transfer(
-            CpiContext::new(ctx.accounts.token_program.to_account_info(), cpi_accounts),
+        do_transfer(
+            ctx.accounts.token_program.to_account_info(),
+            ctx.accounts.institution_token_account.to_account_info(),
+            ctx.accounts.vault_token_account.to_account_info(),
+            ctx.accounts.institution_wallet.to_account_info(),
             amount,
         )?;
 
@@ -353,18 +376,13 @@ pub mod handler {
             &bump,
         ]];
 
-        let cpi_accounts = Transfer {
-            from:      ctx.accounts.vault_token_account.to_account_info(),
-            to:        ctx.accounts.institution_token_account.to_account_info(),
-            authority: strategy.to_account_info(),
-        };
-        token::transfer(
-            CpiContext::new_with_signer(
-                ctx.accounts.token_program.to_account_info(),
-                cpi_accounts,
-                signer_seeds,
-            ),
+        do_transfer_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            ctx.accounts.vault_token_account.to_account_info(),
+            ctx.accounts.institution_token_account.to_account_info(),
+            strategy.to_account_info(),
             amount,
+            signer_seeds,
         )?;
 
         strategy.current_tvl = strategy.current_tvl.saturating_sub(amount);

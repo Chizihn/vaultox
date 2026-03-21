@@ -1,11 +1,11 @@
-import { format, formatDistanceToNow } from 'date-fns';
+import { format, formatDistanceToNow } from "date-fns";
 
 /**
  * Format a number as currency (USD by default)
  */
 export function formatCurrency(
   value: number,
-  options?: { compact?: boolean; decimals?: number }
+  options?: { compact?: boolean; decimals?: number },
 ): string {
   const { compact = false, decimals = 2 } = options ?? {};
 
@@ -21,9 +21,9 @@ export function formatCurrency(
     }
   }
 
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   }).format(value);
@@ -40,8 +40,11 @@ export function formatAddress(address: string, chars = 4): string {
 /**
  * Format a date string
  */
-export function formatDate(dateStr: string, pattern = 'MMM dd, yyyy'): string {
-  return format(new Date(dateStr), pattern);
+export function formatDate(dateStr: string, pattern = "MMM dd, yyyy"): string {
+  if (!dateStr) return "";
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return "";
+  return format(date, pattern);
 }
 
 /**
@@ -62,5 +65,5 @@ export function formatPercentage(value: number, decimals = 1): string {
  * Format large numbers with commas
  */
 export function formatNumber(value: number): string {
-  return new Intl.NumberFormat('en-US').format(value);
+  return new Intl.NumberFormat("en-US").format(value);
 }

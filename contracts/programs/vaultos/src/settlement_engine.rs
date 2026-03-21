@@ -283,6 +283,31 @@ pub mod handler {
         bytes.iter().any(|byte| *byte != 0)
     }
 
+    #[inline(never)]
+    fn do_transfer<'info>(
+        token_program: AccountInfo<'info>,
+        from: AccountInfo<'info>,
+        to: AccountInfo<'info>,
+        authority: AccountInfo<'info>,
+        amount: u64,
+    ) -> Result<()> {
+        let cpi_accounts = Transfer { from, to, authority };
+        token::transfer(CpiContext::new(token_program, cpi_accounts), amount)
+    }
+
+    #[inline(never)]
+    fn do_transfer_with_signer<'info>(
+        token_program: AccountInfo<'info>,
+        from: AccountInfo<'info>,
+        to: AccountInfo<'info>,
+        authority: AccountInfo<'info>,
+        amount: u64,
+        signer_seeds: &[&[&[u8]]],
+    ) -> Result<()> {
+        let cpi_accounts = Transfer { from, to, authority };
+        token::transfer(CpiContext::new_with_signer(token_program, cpi_accounts, signer_seeds), amount)
+    }
+
     /// Initiate a cross-border settlement.
     /// Locks (amount + fee) USDC in an escrow PDA.
     /// Full Travel Rule payload stored on-chain.
@@ -335,13 +360,11 @@ pub mod handler {
         let total = params.amount.checked_add(params.fee)
             .ok_or(SettlementError::Overflow)?;
 
-        let cpi_accounts = Transfer {
-            from:      ctx.accounts.initiator_token_account.to_account_info(),
-            to:        ctx.accounts.escrow_token_account.to_account_info(),
-            authority: ctx.accounts.initiator.to_account_info(),
-        };
-        token::transfer(
-            CpiContext::new(ctx.accounts.token_program.to_account_info(), cpi_accounts),
+        do_transfer(
+            ctx.accounts.token_program.to_account_info(),
+            ctx.accounts.initiator_token_account.to_account_info(),
+            ctx.accounts.escrow_token_account.to_account_info(),
+            ctx.accounts.initiator.to_account_info(),
             total,
         )?;
 
@@ -373,18 +396,13 @@ pub mod handler {
             &bump,
         ]];
 
-        let cpi_accounts = Transfer {
-            from:      ctx.accounts.escrow_token_account.to_account_info(),
-            to:        ctx.accounts.receiver_token_account.to_account_info(),
-            authority: settlement.to_account_info(),
-        };
-        token::transfer(
-            CpiContext::new_with_signer(
-                ctx.accounts.token_program.to_account_info(),
-                cpi_accounts,
-                signer_seeds,
-            ),
+        do_transfer_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            ctx.accounts.escrow_token_account.to_account_info(),
+            ctx.accounts.receiver_token_account.to_account_info(),
+            settlement.to_account_info(),
             settlement.amount,
+            signer_seeds,
         )?;
 
         settlement.status       = SettlementStatus::Completed as u8;
@@ -415,18 +433,13 @@ pub mod handler {
         let total = settlement.amount.checked_add(settlement.fee)
             .ok_or(SettlementError::Overflow)?;
 
-        let cpi_accounts = Transfer {
-            from:      ctx.accounts.escrow_token_account.to_account_info(),
-            to:        ctx.accounts.initiator_token_account.to_account_info(),
-            authority: settlement.to_account_info(),
-        };
-        token::transfer(
-            CpiContext::new_with_signer(
-                ctx.accounts.token_program.to_account_info(),
-                cpi_accounts,
-                signer_seeds,
-            ),
+        do_transfer_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            ctx.accounts.escrow_token_account.to_account_info(),
+            ctx.accounts.initiator_token_account.to_account_info(),
+            settlement.to_account_info(),
             total,
+            signer_seeds,
         )?;
 
         settlement.status = SettlementStatus::Cancelled as u8;

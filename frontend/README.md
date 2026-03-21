@@ -2,6 +2,10 @@
 
 Next.js dashboard for institutional treasury operations and compliance-aware workflows.
 
+> **StableHacks 2026 Submission**
+> - **Core Track**: Cross-Border Stablecoin Treasury
+> - **Additional Implementations**: Institutional Permissioned DeFi Vaults
+
 ## Stack
 
 - Next.js (App Router)

@@ -330,15 +330,19 @@ export function DepositPanel({
                 <div className="border-t border-vault-border p-6">
                   <button
                     onClick={handleDeposit}
-                    disabled={numAmount <= 0 || !isCompliant}
+                    disabled={numAmount <= 0 || !isCompliant || isDepositing}
                     className={cn(
                       "w-full rounded-sm py-3 font-heading text-sm font-semibold transition-all",
-                      numAmount > 0 && isCompliant
+                      numAmount > 0 && isCompliant && !isDepositing
                         ? "bg-gold text-vault-base hover:bg-gold/90"
                         : "cursor-not-allowed bg-vault-elevated text-muted-vault",
                     )}
                   >
-                    {isCompliant ? `Confirm Deposit` : "Compliance Required"}
+                    {isDepositing
+                      ? "Processing Deposit..."
+                      : isCompliant
+                        ? `Confirm Deposit`
+                        : "Compliance Required"}
                   </button>
                   <p className="mt-2 text-center font-body text-[10px] text-muted-vault">
                     Transactions execute on Solana devnet

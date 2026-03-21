@@ -9,13 +9,17 @@ import type { ComplianceCredential, AuditEvent } from "@/types";
 
 // ---------------------------------------------------------------------------
 /**
- * Admin: Resync DB from on-chain credentials for all wallets (after DB reset).
+ * Admin: Resync DB from on-chain credentials for all or specific wallets.
+ * If wallets is provided, only those will be resynced. If omitted, full resync.
  */
-export async function resyncKycDbFromChainAdmin(adminKey: string) {
+export async function resyncKycDbFromChainAdmin(
+  adminKey: string,
+  wallets?: string[],
+) {
   const { data } = await api.post(
     "/compliance/admin/resync-kyc-from-chain",
-    {},
-    { headers: { "x-admin-api-key": adminKey } },
+    wallets ? { wallets } : {},
+    { headers: { "x-admin-key": adminKey } },
   );
   return data;
 }

@@ -2,6 +2,10 @@
 
 Anchor workspace for the on-chain primitives used by VaultOX.
 
+> **StableHacks 2026 Submission**
+> - **Core Track**: Cross-Border Stablecoin Treasury
+> - **Additional Implementations**: Institutional Permissioned DeFi Vaults
+
 ## Scope
 
 Current on-chain model centers around compliance-gated treasury primitives referenced by backend transaction builders and IDL-driven clients.

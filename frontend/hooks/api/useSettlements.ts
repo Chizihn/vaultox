@@ -72,7 +72,7 @@ export const useSettlements = () => {
         debug: responseData.debug,
       });
 
-      if (status !== "connected" || !wallet) {
+      if (!wallet && typeof walletActions?.sendTransaction !== "function") {
         throw new Error("Connect a Solana wallet to submit this settlement.");
       }
 
@@ -82,7 +82,7 @@ export const useSettlements = () => {
         typeof walletActions.sendTransaction
       >[0];
 
-      const signature = wallet.sendTransaction
+      const signature = wallet?.sendTransaction
         ? await wallet.sendTransaction(sendableTransaction, {
             commitment: "confirmed",
           })

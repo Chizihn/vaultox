@@ -240,6 +240,20 @@ export class ComplianceService {
       orderBy: { upgradeCreatedAt: "desc" },
     });
 
+    // Normalize jurisdiction to full country name or ISO code
+    let jurisdiction = data.jurisdiction ?? null;
+    if (jurisdiction && typeof jurisdiction === "string") {
+      jurisdiction = jurisdiction.trim();
+      // If it's a 2-letter code, uppercase it
+      if (/^[A-Za-z]{2}$/.test(jurisdiction)) {
+        jurisdiction = jurisdiction.toUpperCase();
+      } else {
+        // Otherwise, normalize to Title Case (e.g., "Nigeria")
+        jurisdiction = jurisdiction
+          .toLowerCase()
+          .replace(/\b\w/g, (c) => c.toUpperCase());
+      }
+    }
     const saved = await this.prisma.kycRequest.create({
       data: {
         walletAddress,
@@ -247,7 +261,7 @@ export class ComplianceService {
           data.institutionName ??
           data.institution_name ??
           "Unknown Institution",
-        jurisdiction: data.jurisdiction ?? null,
+        jurisdiction,
         role: data.role ?? null,
         email: data.email ?? null,
         tier: Number(data.tier ?? 3),
@@ -463,7 +477,11 @@ export class ComplianceService {
         jurisdictionFlag: this.getJurisdictionFlag(request.jurisdiction ?? ""),
         tier: Math.min(3, Math.max(1, request.tier || 3)) as 1 | 2 | 3,
         kyc_level: Math.min(3, Math.max(1, request.tier || 3)),
-        last_verified: request.upgradeUpdatedAt.toISOString(),
+        last_verified: request.upgradeUpdatedAt
+          ? request.upgradeUpdatedAt.toISOString()
+          : request.upgradeCreatedAt
+            ? request.upgradeCreatedAt.toISOString()
+            : null,
         status:
           request.status === "approved"
             ? "verified"
@@ -856,21 +874,111 @@ export class ComplianceService {
   }
 
   private getJurisdictionFlag(jurisdiction: string) {
-    const code = jurisdiction.trim().toUpperCase();
-    const flags: Record<string, string> = {
-      CH: "🇨🇭",
-      SG: "🇸🇬",
-      DE: "🇩🇪",
-      AE: "🇦🇪",
-      US: "🇺🇸",
-      SWITZERLAND: "🇨🇭",
-      SINGAPORE: "🇸🇬",
-      GERMANY: "🇩🇪",
-      UAE: "🇦🇪",
-      "UNITED STATES": "🇺🇸",
+    if (!jurisdiction) return "🏳️";
+    const nameToCode: Record<string, string> = {
+      SWITZERLAND: "CH",
+      SINGAPORE: "SG",
+      GERMANY: "DE",
+      UAE: "AE",
+      "UNITED STATES": "US",
+      USA: "US",
+      CHINA: "CN",
+      JAPAN: "JP",
+      "UNITED KINGDOM": "GB",
+      UK: "GB",
+      FRANCE: "FR",
+      INDIA: "IN",
+      CANADA: "CA",
+      AUSTRALIA: "AU",
+      RUSSIA: "RU",
+      BRAZIL: "BR",
+      "SOUTH AFRICA": "ZA",
+      NIGERIA: "NG",
+      KENYA: "KE",
+      HONGKONG: "HK",
+      HONG_KONG: "HK",
+      "HONG KONG": "HK",
+      TAIWAN: "TW",
+      KOREA: "KR",
+      "SOUTH KOREA": "KR",
+      "NORTH KOREA": "KP",
+      TURKEY: "TR",
+      TÜRKİYE: "TR",
+      MEXICO: "MX",
+      ARGENTINA: "AR",
+      SPAIN: "ES",
+      ITALY: "IT",
+      POLAND: "PL",
+      NETHERLANDS: "NL",
+      BELGIUM: "BE",
+      SWEDEN: "SE",
+      NORWAY: "NO",
+      DENMARK: "DK",
+      FINLAND: "FI",
+      AUSTRIA: "AT",
+      IRELAND: "IE",
+      PORTUGAL: "PT",
+      GREECE: "GR",
+      HUNGARY: "HU",
+      CZECHIA: "CZ",
+      CZECH: "CZ",
+      SLOVAKIA: "SK",
+      ROMANIA: "RO",
+      BULGARIA: "BG",
+      CROATIA: "HR",
+      SLOVENIA: "SI",
+      ESTONIA: "EE",
+      LATVIA: "LV",
+      LITHUANIA: "LT",
+      LUXEMBOURG: "LU",
+      ICELAND: "IS",
+      MALTA: "MT",
+      CYPRUS: "CY",
+      MONACO: "MC",
+      LIECHTENSTEIN: "LI",
+      SAN_MARINO: "SM",
+      "SAN MARINO": "SM",
+      VATICAN: "VA",
+      ANDORRA: "AD",
+      "NEW ZEALAND": "NZ",
+      ISRAEL: "IL",
+      SAUDI_ARABIA: "SA",
+      "SAUDI ARABIA": "SA",
+      QATAR: "QA",
+      BAHRAIN: "BH",
+      KUWAIT: "KW",
+      OMAN: "OM",
+      EGYPT: "EG",
+      MOROCCO: "MA",
+      TUNISIA: "TN",
+      ALGERIA: "DZ",
+      ETHIOPIA: "ET",
+      GHANA: "GH",
+      UGANDA: "UG",
+      TANZANIA: "TZ",
+      ZIMBABWE: "ZW",
+      ZAMBIA: "ZM",
+      BOTSWANA: "BW",
+      MOZAMBIQUE: "MZ",
+      ANGOLA: "AO",
+      SENEGAL: "SN",
+      CAMEROON: "CM",
+      COTE_DIVOIRE: "CI",
+      "CÔTE D'IVOIRE": "CI",
+      SUDAN: "SD",
+      SOUTH_SUDAN: "SS",
+      "SOUTH SUDAN": "SS",
+      "UNITED ARAB EMIRATES": "AE",
+      // add more as needed
     };
-
-    return flags[code] ?? "🏳️";
+    let code = jurisdiction.trim().toUpperCase();
+    if (nameToCode[code]) code = nameToCode[code];
+    if (!/^[A-Z]{2}$/.test(code)) return "🏳️";
+    const offset = 127397; // U+1F1E6 = "A" regional indicator
+    return String.fromCodePoint(
+      code.charCodeAt(0) + offset,
+      code.charCodeAt(1) + offset,
+    );
   }
 
   private evaluateAmlAssessment(walletAddress: string): AmlAssessment {
@@ -990,19 +1098,30 @@ export class ComplianceService {
   private getDefaultCity(jurisdiction: string) {
     const normalized = jurisdiction.trim().toUpperCase();
     const cities: Record<string, string> = {
-      CH: "Zurich",
-      SWITZERLAND: "Zurich",
-      SG: "Singapore",
-      SINGAPORE: "Singapore",
-      DE: "Frankfurt",
-      GERMANY: "Frankfurt",
-      AE: "Dubai",
-      UAE: "Dubai",
-      US: "New York",
-      "UNITED STATES": "New York",
+      CH: "Zurich", SWITZERLAND: "Zurich",
+      SG: "Singapore", SINGAPORE: "Singapore",
+      DE: "Frankfurt", GERMANY: "Frankfurt",
+      AE: "Dubai", UAE: "Dubai", "UNITED ARAB EMIRATES": "Dubai",
+      US: "New York", USA: "New York", "UNITED STATES": "New York",
+      GB: "London", UK: "London", "UNITED KINGDOM": "London",
+      FR: "Paris", FRANCE: "Paris",
+      JP: "Tokyo", JAPAN: "Tokyo",
+      CN: "Shanghai", CHINA: "Shanghai",
+      HK: "Hong Kong", "HONG KONG": "Hong Kong",
+      NG: "Lagos", NIGERIA: "Lagos",
+      ZA: "Johannesburg", "SOUTH AFRICA": "Johannesburg",
+      BR: "São Paulo", BRAZIL: "São Paulo",
+      IN: "Mumbai", INDIA: "Mumbai",
+      CA: "Toronto", CANADA: "Toronto",
+      AU: "Sydney", AUSTRALIA: "Sydney",
+      KR: "Seoul", "SOUTH KOREA": "Seoul",
+      MX: "Mexico City", MEXICO: "Mexico City",
+      ES: "Madrid", SPAIN: "Madrid",
+      IT: "Milan", ITALY: "Milan",
+      NL: "Amsterdam", NETHERLANDS: "Amsterdam"
     };
 
-    return cities[normalized] ?? "Unknown";
+    return cities[normalized] ?? (jurisdiction.trim() || "Unknown");
   }
 
   private resolveTierRecommendation(

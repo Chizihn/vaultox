@@ -1,7 +1,8 @@
 # VaultOX — Institutional Stablecoin Treasury on Solana
 
-> **StableHacks 2026 Submission** — Cross-Border Stablecoin Treasury Track
-
+> **StableHacks 2026 Submission**
+> - **Core Track**: Cross-Border Stablecoin Treasury
+> - **Additional Implementations**: Institutional Permissioned DeFi Vaults & RWA-Backed Commodity Vaults
 VaultOX is a compliance-native institutional treasury platform built on Solana. It enables regulated financial institutions to move stablecoins cross-border with full on-chain KYC enforcement, Travel Rule payloads on every settlement, and a real-time audit trail that satisfies FINMA, MiCA, and MAS regulatory requirements.
 
 ---

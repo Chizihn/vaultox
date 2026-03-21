@@ -443,10 +443,10 @@ export class SettlementsService {
 
     const normalizedTravelRule = data.travelRule ?? {
       originatorName: senderContext.institution?.name ?? "Unknown Institution",
-      originatorAddress: `${senderContext.institution?.city ?? "Unknown"}, ${senderContext.institution?.jurisdiction ?? "UNK"}`,
+      originatorAddress: `${senderContext.institution?.city ?? senderContext.institution?.jurisdiction ?? "Unknown"}, ${senderContext.institution?.jurisdiction ?? "UNK"}`,
       originatorAccountId: walletAddress,
       beneficiaryName: data.receiver.institutionName ?? "Counterparty",
-      beneficiaryAddress: `${data.receiver.jurisdiction ?? "Unknown"}`,
+      beneficiaryAddress: `${data.receiver.jurisdiction ?? "Local"}`,
       beneficiaryAccountId: data.receiver.walletAddress,
       purposeCode: "OTHR",
     };
@@ -462,11 +462,13 @@ export class SettlementsService {
       data.receiver.walletAddress,
     );
 
+    const requestedAmountMicro = Math.floor(requestedAmount * 1_000_000);
+
     const { tx, feeAmount, settlementSeedHex } =
       await this.solanaService.buildInitiateSettlementTransaction({
         initiatorWallet: walletAddress,
         receiverWallet: data.receiver.walletAddress,
-        amount: data.amount,
+        amount: requestedAmountMicro.toString(),
         feeAmount: "0",
         settlementReference,
         complianceHash,
@@ -514,7 +516,7 @@ export class SettlementsService {
         toInstitutionName: data.receiver.institutionName ?? "Counterparty",
         fromJurisdiction: senderContext.institution?.jurisdiction ?? null,
         toJurisdiction: data.receiver.jurisdiction ?? null,
-        amount: String(data.amount),
+        amount: String(requestedAmount),
         currency: data.currency ?? "USDC",
         status: "pending",
         unsignedTransaction,
@@ -532,7 +534,7 @@ export class SettlementsService {
       "Settlement initiated",
       {
         settlementId: saved.id,
-        amount,
+        amount: requestedAmount,
         jurisdiction: senderContext.institution?.jurisdiction,
         status: "success",
         kytStatus: kytAssessment.status,
