@@ -119,7 +119,7 @@ export function TerminalSidebar() {
                 </div>
 
                 <div className="text-right">
-                  <p className="font-heading text-xs text-text-primary">
+                  <p className="font-body text-xs text-text-primary">
                     {quote ? formatQuotePrice(symbol, quote.price) : "N/A"}
                   </p>
                   <p

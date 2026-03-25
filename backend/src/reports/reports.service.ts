@@ -81,7 +81,9 @@ export class ReportsService {
 
     // ── Build PDF Document ─────────────────────────────────────────────
     const PDFDocument = require("pdfkit");
-    const doc = new PDFDocument({ margin: 50 });
+    const fs = require("fs");
+    const path = require("path");
+    const doc = new PDFDocument({ margin: 0 });
     const buffers: Buffer[] = [];
 
     doc.on("data", buffers.push.bind(buffers));
@@ -95,22 +97,62 @@ export class ReportsService {
     // Handle branding colors
     const colors = {
       primary: "#C8A05B", // Gold
-      text: "#FFFFFF",
+      text: "#222222",
       muted: "#888888",
       bg: "#0D0D0D",
       ok: "#00E076",
       warn: "#FF3366",
+      white: "#FFFFFF",
     };
 
-    // Header
+    // Draw header background
+    doc.rect(0, 0, doc.page.width, 90).fill(colors.bg);
+
+    // Insert logo from URL (centered vertically in header)
+    const https = require("https");
+    const os = require("os");
+    const logoUrl = "https://vaultox.vercel.app/vaultox-logo.png";
+    const logoTmpPath = path.join(
+      os.tmpdir(),
+      `vaultox-logo-${Date.now()}.png`,
+    );
+
+  // Helper to download image synchronously before PDF generation
+  function downloadImage(url, dest) {
+    return new Promise<void>((resolve, reject) => {
+      const file = fs.createWriteStream(dest);
+      https
+        .get(url, (response) => {
+          response.pipe(file);
+          file.on("finish", () => {
+            file.close(resolve);
+          });
+        })
+        .on("error", (err) => {
+          fs.unlink(dest, () => {});
+          resolve(); // Don't block PDF if logo fails
+        });
+    });
+  }
+
+    await downloadImage(logoUrl, logoTmpPath);
+    if (fs.existsSync(logoTmpPath)) {
+      doc.image(logoTmpPath, 40, 20, { width: 90, height: 50 });
+    }
+
+    // Header text (next to logo)
     doc
-      .fontSize(24)
       .fillColor(colors.primary)
-      .text("VaultOS", { align: "left" })
-      .fontSize(10)
-      .fillColor(colors.muted)
-      .text("Institutional Stablecoin Treasury", { align: "left" })
-      .moveDown(2);
+      .fontSize(28)
+      .text("VaultOS", 140, 28, { align: "left", continued: false });
+    doc
+      .fontSize(12)
+      .fillColor(colors.white)
+      .text("Institutional Stablecoin Treasury", 140, 60, { align: "left" });
+
+    // Move below header
+    doc.moveDown().moveDown();
+    doc.y = 110;
 
     // Title
     doc

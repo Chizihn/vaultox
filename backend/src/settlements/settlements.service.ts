@@ -973,6 +973,22 @@ export class SettlementsService {
     );
   }
 
+  private getJurisdictionCode(jurisdiction?: string | null): string {
+    const nameToCode: Record<string, string> = {
+      SWITZERLAND: "CH", CH: "CH",
+      SINGAPORE: "SG", SG: "SG",
+      GERMANY: "DE", DE: "DE",
+      UAE: "AE", AE: "AE", "UNITED ARAB EMIRATES": "AE",
+      "UNITED STATES": "US", US: "US", USA: "US",
+      NIGERIA: "NG", NG: "NG", NIGER: "NG", NIGE: "NG",
+      JAPAN: "JP", JP: "JP", JAPA: "JP",
+      FRANCE: "FR", FR: "FR", FRAN: "FR",
+      "UNITED KINGDOM": "GB", UK: "GB", GB: "GB",
+    };
+    let code = (jurisdiction ?? "").trim().toUpperCase();
+    return nameToCode[code] ?? (code.length === 2 ? code : "US");
+  }
+
   private toCityNode(name: string, jurisdiction?: string | null, offset = 0) {
     const positions: Record<
       string,
@@ -983,8 +999,12 @@ export class SettlementsService {
       DE: { x: 50, y: 26, lat: 50.1109, lng: 8.6821 },
       AE: { x: 64, y: 39, lat: 25.2048, lng: 55.2708 },
       US: { x: 24, y: 28, lat: 40.7128, lng: -74.006 },
+      NG: { x: 49, y: 46, lat: 9.082, lng: 8.6753 },
+      JP: { x: 86, y: 31, lat: 36.2048, lng: 138.2529 },
+      GB: { x: 46, y: 24, lat: 55.3781, lng: -3.436 },
+      FR: { x: 47, y: 28, lat: 46.2276, lng: 2.2137 },
     };
-    const key = (jurisdiction ?? "US").toUpperCase().slice(0, 2);
+    const key = this.getJurisdictionCode(jurisdiction);
     const base = positions[key] ?? { x: 40, y: 30, lat: 0, lng: 0 };
 
     return {
@@ -997,14 +1017,25 @@ export class SettlementsService {
   }
 
   private getJurisdictionFlag(jurisdiction?: string | null) {
-    const code = (jurisdiction ?? "").trim().toUpperCase();
-    return (
-      (
-        { CH: "🇨🇭", SG: "🇸🇬", DE: "🇩🇪", AE: "🇦🇪", US: "🇺🇸" } as Record<
-          string,
-          string
-        >
-      )[code] ?? "🏳️"
+    if (!jurisdiction) return "🏳️";
+    const nameToCode: Record<string, string> = {
+      SWITZERLAND: "CH", CH: "CH",
+      SINGAPORE: "SG", SG: "SG",
+      GERMANY: "DE", DE: "DE",
+      UAE: "AE", AE: "AE", "UNITED ARAB EMIRATES": "AE",
+      "UNITED STATES": "US", US: "US", USA: "US",
+      NIGERIA: "NG", NG: "NG", NIGER: "NG", NIGE: "NG",
+      JAPAN: "JP", JP: "JP", JAPA: "JP",
+      FRANCE: "FR", FR: "FR", FRAN: "FR",
+      "UNITED KINGDOM": "GB", UK: "GB", GB: "GB",
+    };
+    let code = jurisdiction.trim().toUpperCase();
+    if (nameToCode[code]) code = nameToCode[code];
+    if (!/^[A-Z]{2}$/.test(code)) return "🏳️";
+    const offset = 127397; // U+1F1E6 = "A" regional indicator
+    return String.fromCodePoint(
+      code.charCodeAt(0) + offset,
+      code.charCodeAt(1) + offset,
     );
   }
 
@@ -1013,11 +1044,15 @@ export class SettlementsService {
     return (
       (
         {
-          CH: "Zurich",
-          SG: "Singapore",
-          DE: "Frankfurt",
-          AE: "Dubai",
-          US: "New York",
+          CH: "Zurich", SWITZERLAND: "Zurich",
+          SG: "Singapore", SINGAPORE: "Singapore",
+          DE: "Frankfurt", GERMANY: "Frankfurt",
+          AE: "Dubai", UAE: "Dubai", "UNITED ARAB EMIRATES": "Dubai",
+          US: "New York", "UNITED STATES": "New York", USA: "New York",
+          NG: "Lagos", NIGERIA: "Lagos", NIGER: "Lagos", NIGE: "Lagos",
+          JP: "Tokyo", JAPAN: "Tokyo", JAPA: "Tokyo",
+          GB: "London", "UNITED KINGDOM": "London", UK: "London",
+          FR: "Paris", FRANCE: "Paris", FRAN: "Paris",
         } as Record<string, string>
       )[code] ?? "Unknown"
     );

@@ -38,7 +38,7 @@ export function VaultActivityList() {
         {activity.map((entry, idx) => (
           <li
             key={idx}
-            className="flex items-center justify-between border-b border-vault-border py-1"
+            className="flex flex-col gap-1 border-b border-vault-border py-1"
           >
             <span className="font-body text-[11px] text-text-primary">
               {new Date(entry.date).toLocaleString()} — {entry.strategyName}

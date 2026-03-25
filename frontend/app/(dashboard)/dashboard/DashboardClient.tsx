@@ -8,7 +8,6 @@ import { cn } from "@/lib/utils";
 import { MetricCard } from "@/components/shared/MetricCard";
 import { TierBadge } from "@/components/shared/TierBadge";
 import { PortfolioDonut } from "@/components/dashboard/PortfolioDonut";
-import { StrategyCard } from "@/components/dashboard/StrategyCard";
 import { SettlementFeed } from "@/components/dashboard/SettlementFeed";
 import { WorldMap } from "@/components/dashboard/WorldMap";
 import { ComplianceRing } from "@/components/dashboard/ComplianceRing";
@@ -21,14 +20,14 @@ import { useSettlements } from "@/hooks/api/useSettlements";
 import api from "@/services/api";
 import { formatCurrency } from "@/utils/format";
 import { TIER_LABELS } from "@/utils/constants";
-import type { VaultPosition, VaultStrategy, SettlementArc } from "@/types";
+import type { VaultPosition, SettlementArc } from "@/types";
 
 export function DashboardClient() {
   const { institution, tier } = useAuthStore();
   const [liveArcs, setLiveArcs] = useState<SettlementArc[]>([]);
 
   const { metrics } = useDashboard();
-  const { strategies, positions } = useVaults();
+  const { positions } = useVaults();
   const { settlements } = useSettlements();
 
   const safeMetrics = metrics || {
@@ -37,10 +36,10 @@ export function DashboardClient() {
     yieldToday: 0,
     activeSettlements: 0,
     pendingSettlements: 0,
+    totalSettlements: 0,
     complianceScore: 0,
   };
   const safePositions = (positions || []) as VaultPosition[];
-  const safeStrategies = (strategies || []) as VaultStrategy[];
   const safeSettlements = settlements?.settlements || [];
   const tierLabel = tier ? TIER_LABELS[tier] : "Credential pending";
 
@@ -151,26 +150,26 @@ export function DashboardClient() {
         aria-label="Key metrics"
         className="grid grid-cols-2 gap-3 lg:grid-cols-4"
       >
-        {/* Card 1: Active Settlements */}
+        {/* Card 1: Total Settlements */}
         <MetricCard
-          label="Active Settlements"
-          value={safeMetrics.activeSettlements}
+          label="Total Settlements"
+          value={safeMetrics.totalSettlements}
           format="number"
-          subtitle={`${safeMetrics.pendingSettlements} pending`}
+          subtitle={`${safeMetrics.activeSettlements} active`}
           accentColor="teal"
           index={0}
         >
           <div className="flex items-end justify-between gap-2">
             <p className="font-heading text-[2rem] leading-none tracking-tight text-teal tabular-nums">
               <AnimatedNumber
-                value={safeMetrics.activeSettlements}
+                value={safeMetrics.totalSettlements}
                 format="number"
                 delay={100}
               />
             </p>
             <div className="flex flex-col items-end gap-1">
               <span className="font-body text-xs text-muted-vault">
-                {safeMetrics.pendingSettlements} pending
+                {safeMetrics.activeSettlements} active
               </span>
               {safeMetrics.activeSettlements > 0 && (
                 <Activity className="size-4 animate-pulse text-teal" />

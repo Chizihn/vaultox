@@ -20,6 +20,8 @@ import { TierBadge } from "@/components/shared/TierBadge";
 import { UserAvatar } from "@/components/shared/UserAvatar";
 
 import { cn } from "@/lib/utils";
+import { useWalletConnection } from "@solana/react-hooks";
+import { useAuth } from "@/hooks/api/useAuth";
 
 interface WalletModalProps {
   open: boolean;
@@ -33,7 +35,9 @@ export function WalletModal({
   onOpenSettings,
 }: WalletModalProps) {
   const router = useRouter();
-  const { walletAddress, institution, tier, disconnect } = useAuthStore();
+  const { walletAddress, institution, tier } = useAuthStore();
+  const { logout } = useAuth();
+  const { disconnect: walletDisconnect } = useWalletConnection();
 
   const [copied, setCopied] = useState(false);
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
@@ -45,14 +49,18 @@ export function WalletModal({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleDisconnect = () => {
+  const handleDisconnect = async () => {
     if (!confirmDisconnect) {
       setConfirmDisconnect(true);
       return;
     }
-    disconnect();
+    
+    // Perform full system logout (Wallet + Store)
+    await logout(walletDisconnect);
+    
+    // Close modal and redirect
     onClose();
-    router.push("/login");
+    router.replace("/login");
   };
 
   const handleCompliance = () => {
@@ -81,7 +89,7 @@ export function WalletModal({
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
             className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
-            onClick={onClose}
+            // onClick={onClose} // Removed to prevent accidental closure
           />
 
           {/* Modal */}

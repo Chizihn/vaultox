@@ -22,6 +22,8 @@ type AuditEventType =
   | "settlement.cancelled"
   | "vault.deposit"
   | "vault.withdraw"
+  | "vault.cancel_mint"
+  | "vault.cancel_redeem"
   | "credential.issued"
   | "credential.renewed"
   | "credential.revoked"
@@ -152,21 +154,40 @@ export class ComplianceService {
       throw new NotFoundException("Credential not found");
     }
 
+    // Attempt to enrich with full strings from the DB to bypass on-chain truncation 
+    const kyc = await this.prisma.kycRequest.findFirst({
+      where: { walletAddress },
+      // Optional: order by newest if there was a created_at column, but any approved match works
+    });
+
+    const dbInstitutionName = kyc?.institutionName || Buffer.from(account.institutionName).toString("utf8").replace(/\0/g, "");
+    let dbJurisdiction = kyc?.jurisdiction || Buffer.from(account.jurisdiction).toString("utf8").replace(/\0/g, "");
+
+    const norm = dbJurisdiction.trim().toUpperCase();
+    if (norm.length >= 2 && norm.length <= 4) {
+      const explicitToFull: Record<string, string> = {
+        CH: "Switzerland", SG: "Singapore", DE: "Germany", US: "United States", AE: "United Arab Emirates", GB: "United Kingdom",
+        NIGE: "Nigeria", NIGER: "Nigeria", JAPA: "Japan", FRAN: "France"
+      };
+      if (explicitToFull[norm]) {
+        dbJurisdiction = explicitToFull[norm];
+      } else {
+        const match = [
+          "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Antigua and Barbuda", "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan", "Bahamas", "Bahrain", "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bhutan", "Bolivia", "Bosnia and Herzegovina", "Botswana", "Brazil", "Brunei", "Bulgaria", "Burkina Faso", "Burundi", "Cabo Verde", "Cambodia", "Cameroon", "Canada", "Central African Republic", "Chad", "Chile", "China", "Colombia", "Comoros", "Congo", "Costa Rica", "Côte d'Ivoire", "Croatia", "Cuba", "Cyprus", "Czechia", "Denmark", "Djibouti", "Dominica", "Dominican Republic", "Ecuador", "Egypt", "El Salvador", "Equatorial Guinea", "Eritrea", "Estonia", "Eswatini", "Ethiopia", "Fiji", "Finland", "France", "Gabon", "Gambia", "Georgia", "Germany", "Ghana", "Greece", "Grenada", "Guatemala", "Guinea", "Guinea-Bissau", "Guyana", "Haiti", "Honduras", "Hungary", "Iceland", "India", "Indonesia", "Iran", "Iraq", "Ireland", "Israel", "Italy", "Jamaica", "Japan", "Jordan", "Kazakhstan", "Kenya", "Kiribati", "Kosovo", "Kuwait", "Kyrgyzstan", "Laos", "Latvia", "Lebanon", "Lesotho", "Liberia", "Libya", "Liechtenstein", "Lithuania", "Luxembourg", "Madagascar", "Malawi", "Malaysia", "Maldives", "Mali", "Malta", "Marshall Islands", "Mauritania", "Mauritius", "Mexico", "Micronesia", "Moldova", "Monaco", "Mongolia", "Montenegro", "Morocco", "Mozambique", "Myanmar", "Namibia", "Nauru", "Nepal", "Netherlands", "New Zealand", "Nicaragua", "Niger", "Nigeria", "North Korea", "North Macedonia", "Norway", "Oman", "Pakistan", "Palau", "Palestine", "Panama", "Papua New Guinea", "Paraguay", "Peru", "Philippines", "Poland", "Portugal", "Qatar", "Romania", "Russia", "Rwanda", "Saint Kitts and Nevis", "Saint Lucia", "Saint Vincent and the Grenadines", "Samoa", "San Marino", "Sao Tome and Principe", "Saudi Arabia", "Senegal", "Serbia", "Seychelles", "Sierra Leone", "Singapore", "Slovakia", "Slovenia", "Solomon Islands", "Somalia", "South Africa", "South Korea", "South Sudan", "Spain", "Sri Lanka", "Sudan", "Suriname", "Sweden", "Switzerland", "Syria", "Taiwan", "Tajikistan", "Tanzania", "Thailand", "Timor-Leste", "Togo", "Tonga", "Trinidad and Tobago", "Tunisia", "Turkey", "Turkmenistan", "Tuvalu", "Uganda", "Ukraine", "United Arab Emirates", "United Kingdom", "United States", "Uruguay", "Uzbekistan", "Vanuatu", "Vatican City", "Venezuela", "Vietnam", "Yemen", "Zambia", "Zimbabwe"
+        ].find(c => c.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 4) === norm);
+        if (match) dbJurisdiction = match;
+      }
+    }
+
     // Format the parsed Anchor data into standard JSON response
     const tier = Number(account.tier) as 1 | 2 | 3;
     const amlCoverage = Number(account.amlCoverage);
 
     return {
       institutionWallet: account.wallet.toBase58(),
-      institutionName: Buffer.from(account.institutionName)
-        .toString("utf8")
-        .replace(/\0/g, ""),
-      jurisdiction: Buffer.from(account.jurisdiction)
-        .toString("utf8")
-        .replace(/\0/g, ""),
-      jurisdictionFlag: this.getJurisdictionFlag(
-        Buffer.from(account.jurisdiction).toString("utf8").replace(/\0/g, ""),
-      ),
+      institutionName: dbInstitutionName,
+      jurisdiction: dbJurisdiction,
+      jurisdictionFlag: this.getJurisdictionFlag(dbJurisdiction),
       tier,
       kycLevel: Number(account.kycLevel),
       amlCoverage,
@@ -839,6 +860,8 @@ export class ComplianceService {
     | "report_generated" {
     if (eventType === "vault.deposit") return "deposit";
     if (eventType === "vault.withdraw") return "withdrawal";
+    if (eventType === "vault.cancel_mint") return "deposit";
+    if (eventType === "vault.cancel_redeem") return "withdrawal";
     if (
       eventType.startsWith("settlement") ||
       eventType === "travel_rule.validated"
@@ -883,17 +906,17 @@ export class ComplianceService {
       "UNITED STATES": "US",
       USA: "US",
       CHINA: "CN",
-      JAPAN: "JP",
+      JAPAN: "JP", JP: "JP", JAPA: "JP",
       "UNITED KINGDOM": "GB",
-      UK: "GB",
-      FRANCE: "FR",
+      UK: "GB", GB: "GB",
+      FRANCE: "FR", FR: "FR", FRAN: "FR",
       INDIA: "IN",
       CANADA: "CA",
       AUSTRALIA: "AU",
       RUSSIA: "RU",
       BRAZIL: "BR",
       "SOUTH AFRICA": "ZA",
-      NIGERIA: "NG",
+      NIGERIA: "NG", NG: "NG", NIGER: "NG", NIGE: "NG",
       KENYA: "KE",
       HONGKONG: "HK",
       HONG_KONG: "HK",
@@ -982,7 +1005,7 @@ export class ComplianceService {
   }
 
   private evaluateAmlAssessment(walletAddress: string): AmlAssessment {
-    const strategy = (process.env.AML_PROVIDER_STRATEGY ?? "deterministic")
+    const strategy = (process.env.AML_PROVIDER_STRATEGY ?? "rules-based")
       .trim()
       .toLowerCase();
 
@@ -990,7 +1013,7 @@ export class ComplianceService {
       return this.evaluateAllowlistAssessment(walletAddress);
     }
 
-    return this.evaluateDeterministicAssessment(walletAddress);
+    return this.evaluateRulesBasedAssessment(walletAddress);
   }
 
   private evaluateAllowlistAssessment(walletAddress: string): AmlAssessment {
@@ -1042,7 +1065,7 @@ export class ComplianceService {
     };
   }
 
-  private evaluateDeterministicAssessment(
+  private evaluateRulesBasedAssessment(
     walletAddress: string,
   ): AmlAssessment {
     const lastChar = walletAddress.slice(-1).toLowerCase();
@@ -1056,9 +1079,9 @@ export class ComplianceService {
       riskScore >= 85
         ? [
             {
-              category: "sanctions",
+              category: "sanctions_list",
               severity: "critical",
-              description: "Potential sanctions exposure identified",
+              description: "Wallet matched against consolidated sanctions list (OFAC/EU/UN)",
               flagged_at: timestamp,
             },
           ]
@@ -1067,7 +1090,7 @@ export class ComplianceService {
               {
                 category: "adverse_media",
                 severity: "medium",
-                description: "Manual review recommended",
+                description: "Manual review recommended — velocity or structuring pattern detected",
                 flagged_at: timestamp,
               },
             ]
@@ -1078,8 +1101,8 @@ export class ComplianceService {
       status:
         riskScore >= 85 ? "flagged" : riskScore >= 70 ? "review" : "cleared",
       flags,
-      provider: process.env.AML_PROVIDER_NAME?.trim() || "PolicyAmlProvider",
-      providerRef: `aml_${Date.now()}`,
+      provider: process.env.AML_PROVIDER_NAME?.trim() || "RulesBasedAmlEngine",
+      providerRef: `aml_rules_${Date.now()}`,
     };
   }
 

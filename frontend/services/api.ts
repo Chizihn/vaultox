@@ -49,6 +49,7 @@ api.interceptors.response.use(
           tier: null,
           credentialStatus: "unregistered",
           jwt: null,
+          authBootstrap: "ready",
         });
       }
     }

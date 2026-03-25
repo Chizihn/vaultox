@@ -69,7 +69,7 @@ export function SettlementFeed({
 
               {/* Amount + badge */}
               <div className="flex flex-col items-end gap-1 shrink-0">
-                <span className="font-heading text-xs text-text-primary">
+                <span className="font-body text-xs text-text-primary">
                   {formatCurrency(s.amount, { compact: true })}
                 </span>
                 <SettlementBadge status={s.status} />

@@ -9,6 +9,8 @@ import type { VaultStrategy, ComplianceTier } from "@/types";
 import { useVaults } from "@/hooks/api/useVaults";
 import { useMarketQuotesStream } from "@/hooks/useMarketQuotesStream";
 import { Tooltip } from "@/components/shared/Tooltip";
+import { toast } from "sonner";
+import { getErrorMessage } from "@/utils/error-handler";
 
 interface DepositPanelProps {
   strategy: VaultStrategy | null;
@@ -25,13 +27,14 @@ export function DepositPanel({
 }: DepositPanelProps) {
   const [amount, setAmount] = useState("");
   const [isDone, setIsDone] = useState(false);
-  const { deposit, isDepositing } = useVaults();
+  const { deposit, isDepositing, depositStep, depositStatus } = useVaults();
 
   const numAmount = parseFloat(amount.replace(/,/g, "")) || 0;
   const annualYield = (numAmount * (strategy?.apy ?? 0)) / 100;
   const monthlyYield = annualYield / 12;
   const isCompliant = strategy ? userTier <= strategy.minTier : false;
   const isCommodityStrategy = strategy?.category === "commodity";
+  const isSolsticeLiquidity = strategy?.id === "solstice-liquidity";
 
   const { quotes: commodityQuotes, provider: commodityProvider } =
     useMarketQuotesStream(["XAUUSD", "XAGUSD"]);
@@ -47,6 +50,7 @@ export function DepositPanel({
     if (!strategy || numAmount <= 0 || !isCompliant) return;
     try {
       await deposit({ strategyId: strategy.id, amount: numAmount });
+      toast.success("Deposit completed successfully.");
       setIsDone(true);
       setTimeout(() => {
         setIsDone(false);
@@ -55,6 +59,7 @@ export function DepositPanel({
       }, 2000);
     } catch (e) {
       console.error("Deposit failed", e);
+      toast.error(getErrorMessage(e, "Deposit failed. Please try again."));
     }
   };
 
@@ -77,7 +82,7 @@ export function DepositPanel({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={onClose}
+            // onClick={onClose} // Removed to prevent accidental closure
             className="fixed inset-0 z-40 bg-vault-base/60 backdrop-blur-sm"
           />
 
@@ -339,11 +344,84 @@ export function DepositPanel({
                     )}
                   >
                     {isDepositing
-                      ? "Processing Deposit..."
+                      ? depositStatus || "Processing Deposit..."
                       : isCompliant
                         ? `Confirm Deposit`
                         : "Compliance Required"}
                   </button>
+
+                  {/* Progressive Stepper UI */}
+                  {isDepositing && depositStep > 0 && (
+                    <div className="mt-6 space-y-4 rounded-sm border border-gold/20 bg-gold/5 p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="font-heading text-[10px] uppercase tracking-widest text-gold">
+                          Institutional Protocol Sequence
+                        </p>
+                        <span className="font-body text-[10px] text-muted-vault">
+                          Step {depositStep} of 3
+                        </span>
+                      </div>
+                      
+                      <div className="space-y-3">
+                        {[
+                          { step: 1, label: "Initializing Mint Request", desc: "Setting up secure accounts and request" },
+                          { step: 2, label: "Confirming Oracle Settlement", desc: "Awaiting protocol oracle verification" },
+                          isSolsticeLiquidity
+                            ? {
+                                step: 3,
+                                label: "Finalizing Liquidity Position",
+                                desc: "Instant withdrawal — liquidity strategy does not require yield vault lock",
+                              }
+                            : {
+                                step: 3,
+                                label: "Locking into Yield Vault",
+                                desc: "Finalizing USX to eUSX conversion",
+                              }
+                        ].map((s) => (
+                          <div key={s.step} className="flex gap-3">
+                            <div className="flex flex-col items-center">
+                              <div className={cn(
+                                "flex size-5 items-center justify-center rounded-full border text-[10px] font-bold transition-colors",
+                                depositStep > s.step ? "bg-gold text-vault-base border-gold" : 
+                                depositStep === s.step ? "border-gold text-gold animate-pulse" : 
+                                "border-vault-border text-muted-vault"
+                              )}>
+                                {depositStep > s.step ? "✓" : s.step}
+                              </div>
+                              {s.step < 3 && (
+                                <div className={cn(
+                                  "w-px flex-1 my-1",
+                                  depositStep > s.step ? "bg-gold" : "bg-vault-border"
+                                )} />
+                              )}
+                            </div>
+                            <div className="pb-2">
+                              <p className={cn(
+                                "font-heading text-xs font-semibold",
+                                depositStep === s.step ? "text-gold" : 
+                                depositStep > s.step ? "text-text-primary" : "text-muted-vault"
+                              )}>
+                                {s.label}
+                              </p>
+                              {depositStep === s.step && (
+                                <p className="mt-0.5 font-body text-[10px] text-muted-vault leading-relaxed">
+                                  {s.desc}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      
+                      <div className="mt-2 flex items-center gap-2 rounded-sm bg-vault-base/40 p-2">
+                        <AlertCircle className="size-3 text-gold" />
+                        <p className="font-body text-[10px] text-muted-vault italic">
+                          Please keep your wallet open and do not refresh.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
                   <p className="mt-2 text-center font-body text-[10px] text-muted-vault">
                     Transactions execute on Solana devnet
                   </p>

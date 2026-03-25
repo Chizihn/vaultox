@@ -9,7 +9,7 @@ const protectedPrefixes = [
   "/settlements",
   "/reports",
   "/compliance",
-  "/admin",
+  // "/admin",
 ];
 
 export function middleware(request: NextRequest) {
@@ -37,10 +37,14 @@ export function middleware(request: NextRequest) {
   }
 
   if (isProtected && token && status !== "verified") {
-    // Exempt /admin and /access-pending from the verified check
-    if (pathname === "/admin" || pathname.startsWith("/admin/")) {
-      return NextResponse.next();
-    }
+    // Exempt /admin, /compliance/admin and /access-pending from the verified check
+    // if (
+    //   pathname === "/admin" ||
+    //   pathname.startsWith("/admin/") ||
+    //   pathname.startsWith("/compliance/admin")
+    // ) {
+    //   return NextResponse.next();
+    // }
 
     const pendingUrl = new URL("/access-pending", request.url);
     pendingUrl.searchParams.set("status", status ?? "unregistered");
@@ -71,12 +75,12 @@ export function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     "/login",
-    "/dashboard/:path*",
-    "/vaults/:path*",
-    "/settlements/:path*",
-    "/reports/:path*",
-    "/compliance/:path*",
-    "/admin/:path*",
-    "/access-pending/:path*",
+    "/dashboard{/:path}*",
+    "/vaults{/:path}*",
+    "/settlements{/:path}*",
+    "/reports{/:path}*",
+    "/compliance{/:path}*",
+    // "/admin{/:path}*",
+    "/access-pending{/:path}*",
   ],
 };

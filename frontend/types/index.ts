@@ -10,6 +10,7 @@ export interface Institution {
   tier: ComplianceTier;
   city: string;
   walletAddress: string;
+  status?: "verified" | "pending" | "revoked";
 }
 
 export interface ComplianceCredential {

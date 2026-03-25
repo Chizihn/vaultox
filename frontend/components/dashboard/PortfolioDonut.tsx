@@ -76,7 +76,7 @@ export function PortfolioDonut({
           <span className="font-body text-[10px] uppercase tracking-widest text-muted-vault">
             {totalLabel}
           </span>
-          <span className="font-heading text-xl text-gold">
+          <span className="font-body text-xl text-gold">
             {formatCurrency(total, { compact: true })}
           </span>
         </div>

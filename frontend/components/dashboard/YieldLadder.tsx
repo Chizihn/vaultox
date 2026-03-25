@@ -143,7 +143,7 @@ export function YieldLadder({ userTier, className }: YieldLadderProps) {
                 {/* APY */}
                 <div className="shrink-0 text-right">
                   <p
-                    className="font-heading text-xl font-bold leading-none"
+                    className="font-body text-xl font-bold leading-none"
                     style={{ color: locked ? "#3A3F5C" : rung.color }}
                   >
                     {rung.apy}%

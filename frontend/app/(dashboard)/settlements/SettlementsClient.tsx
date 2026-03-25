@@ -9,6 +9,8 @@ import {
   AlertTriangle,
   Filter,
   ExternalLink,
+  MoreVertical,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatDate } from "@/utils/format";
@@ -24,6 +26,8 @@ import { useMarketQuotesStream } from "@/hooks/useMarketQuotesStream";
 import api from "@/services/api";
 import { getCounterparties } from "@/services/compliance";
 import { getSolanaExplorerTxUrl } from "@/config/solana";
+import { toast } from "sonner";
+import { getErrorMessage } from "@/utils/error-handler";
 
 type SettlementCalendarStatus = {
   jurisdiction: string;
@@ -40,6 +44,25 @@ const FX_SYMBOL_BY_JURISDICTION: Record<string, string> = {
   "United Arab Emirates": "USDAED",
 };
 
+const JURISDICTION_CITY: Record<string, string> = {
+  CH: "Zurich", Switzerland: "Zurich",
+  SG: "Singapore", Singapore: "Singapore",
+  US: "New York", "United States": "New York", USA: "New York",
+  DE: "Frankfurt", Germany: "Frankfurt",
+  GB: "London", "United Kingdom": "London", UK: "London",
+  AE: "Dubai", UAE: "Dubai", "United Arab Emirates": "Dubai",
+  JP: "Tokyo", Japan: "Tokyo", JAPA: "Tokyo",
+  HK: "Hong Kong", "Hong Kong": "Hong Kong",
+  FR: "Paris", France: "Paris", FRAN: "Paris",
+  NG: "Lagos", Nigeria: "Lagos", NIGER: "Lagos", NIGE: "Lagos",
+  KE: "Nairobi", Kenya: "Nairobi",
+};
+
+function getCityForJurisdiction(jurisdiction: string | undefined): string {
+  if (!jurisdiction) return "N/A";
+  return JURISDICTION_CITY[jurisdiction] ?? JURISDICTION_CITY[jurisdiction.toUpperCase()] ?? jurisdiction;
+}
+
 export function SettlementsClient() {
   const { institution } = useAuthStore();
   const [networkDirectory, setNetworkDirectory] = useState<Institution[]>([]);
@@ -50,6 +73,8 @@ export function SettlementsClient() {
   const [amount, setAmount] = useState("");
   const [initiationError, setInitiationError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const [settlementTxHash, setSettlementTxHash] = useState<string | null>(null);
+  const [selectedSettlement, setSelectedSettlement] = useState<Settlement | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const { quotes: quoteMap, provider: quoteProvider } = useMarketQuotesStream([
@@ -77,15 +102,16 @@ export function SettlementsClient() {
 
         setNetworkDirectory(
           counterparties
-            .filter((entry) => entry.status === "verified")
+            .filter((entry) => entry.status === "verified" || entry.status === "pending")
             .map((entry) => ({
               id: entry.wallet,
               name: entry.institution_name,
               jurisdiction: entry.jurisdiction,
               jurisdictionFlag: entry.jurisdictionFlag,
               tier: entry.tier,
-              city: "Unknown",
+              city: getCityForJurisdiction(entry.jurisdiction),
               walletAddress: entry.wallet,
+              status: entry.status,
             })),
         );
       } catch (error) {
@@ -164,6 +190,17 @@ export function SettlementsClient() {
     if (!fromInst || !toInstitution || numAmount <= 0) return;
     setInitiationError(null);
 
+    // Reactive compliance gate:
+    // We allow selecting the institution, but block the actual move-funds action.
+    if (toInstitution.status !== "verified") {
+      const msg = "Compliance Block: Selected counterparty does not have a valid Vault Passport. Asset settlement is prohibited to uncredentialed institutions.";
+      setInitiationError(msg);
+      toast.error("Compliance Blocked", {
+        description: "Counterparty has no valid on-chain credential.",
+      });
+      return;
+    }
+
     try {
       // First initiate the transaction to get a signature
       const result = await initiateSettlement({
@@ -187,6 +224,8 @@ export function SettlementsClient() {
 
       // Show the progress modal and start tracking with the real signature
       setShowModal(true);
+      setSettlementTxHash(result?.signature || null);
+      toast.success("Settlement submitted. Tracking progress now.");
       // 'result' contains the signature return from the mutation
       await startSettlement(result?.signature);
     } catch (error) {
@@ -216,6 +255,9 @@ export function SettlementsClient() {
         setInitiationError(message);
       }
       console.error("Failed to initiate settlement", error);
+      toast.error(
+        getErrorMessage(error, "Failed to initiate settlement. Please try again."),
+      );
     }
   };
 
@@ -223,6 +265,7 @@ export function SettlementsClient() {
     setShowModal(false);
     reset();
     setAmount("");
+    setSettlementTxHash(null);
     setToInstitution(null);
   };
 
@@ -544,7 +587,7 @@ export function SettlementsClient() {
                   {[
                     "Date / Time",
                     "Route",
-                    "Amount",
+                    "Amount (USDC)",
                     "Status",
                     "TX Hash",
                     "Actions",
@@ -580,15 +623,16 @@ export function SettlementsClient() {
                         </span>
                       </div>
                     </td>
-                    <Tooltip
-                      content="Funds are atomically swapped or transferred via the settlement engine."
-                      position="right"
-                    >
-                      <td className="px-5 py-3 font-heading text-xs text-text-primary cursor-help">
-                        {formatCurrency(s.amount, { compact: true })}{" "}
-                        {s.currency}
-                      </td>
-                    </Tooltip>
+                    <td className="px-5 py-3 font-body text-xs text-text-primary">
+                      <Tooltip
+                        content="Funds are atomically swapped or transferred via the settlement engine."
+                        position="right"
+                      >
+                        <span className="block cursor-help">
+                          {formatCurrency(s.amount, { compact: true })}
+                        </span>
+                      </Tooltip>
+                    </td>
                     <td className="px-5 py-3">
                       <SettlementBadge status={s.status} />
                     </td>
@@ -600,7 +644,7 @@ export function SettlementsClient() {
                       </span>
                     </td>
                     <td className="px-5 py-3">
-                      <div className="flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100">
+                      <div className="flex items-center gap-2">
                         <a
                           href={getSolanaExplorerTxUrl(s.txHash)}
                           target="_blank"
@@ -609,10 +653,18 @@ export function SettlementsClient() {
                           aria-label="View on explorer"
                           title="View on Solana Explorer"
                         >
-                          <ExternalLink className="size-3" />
+                          <ExternalLink className="size-4" />
                         </a>
+                        <button
+                          onClick={() => setSelectedSettlement(s)}
+                          className="rounded-sm border border-vault-border p-1.5 text-muted-vault transition-colors hover:bg-vault-elevated hover:text-text-primary"
+                          title="View full details"
+                        >
+                          <MoreVertical className="size-4" />
+                        </button>
                       </div>
                     </td>
+
                   </motion.tr>
                 ))}
               </tbody>
@@ -649,8 +701,81 @@ export function SettlementsClient() {
         amountUsdc={numAmount}
         fromCity={fromInst?.city ?? "Origin"}
         toCity={toInstitution?.city ?? "Destination"}
+        txHash={settlementTxHash}
         onClose={handleCloseModal}
       />
+
+      {/* ── Transaction Details Modal ── */}
+      {selectedSettlement && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-vault-base/80 backdrop-blur-sm"
+            onClick={() => setSelectedSettlement(null)}
+          />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="relative w-full max-w-lg overflow-hidden rounded-md border border-vault-border bg-vault-surface shadow-2xl"
+          >
+            <div className="flex items-center justify-between border-b border-vault-border bg-vault-elevated px-6 py-4">
+              <h3 className="font-heading text-lg font-semibold text-text-primary">
+                Transaction Details
+              </h3>
+              <button
+                onClick={() => setSelectedSettlement(null)}
+                className="text-muted-vault hover:text-text-primary"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+            
+            <div className="p-6">
+              <div className="space-y-4 font-code text-sm text-text-primary">
+                <div className="flex justify-between border-b border-vault-border/50 pb-2">
+                  <span className="text-muted-vault">Status</span>
+                  <SettlementBadge status={selectedSettlement.status} />
+                </div>
+                <div className="flex justify-between border-b border-vault-border/50 pb-2">
+                  <span className="text-muted-vault">Amount</span>
+                  <span>{formatCurrency(selectedSettlement.amount)} {selectedSettlement.currency}</span>
+                </div>
+                <div className="flex justify-between border-b border-vault-border/50 pb-2">
+                  <span className="text-muted-vault">From</span>
+                  <span>{selectedSettlement.fromInstitution.jurisdictionFlag} {selectedSettlement.fromInstitution.name}</span>
+                </div>
+                <div className="flex justify-between border-b border-vault-border/50 pb-2">
+                  <span className="text-muted-vault">To</span>
+                  <span>{selectedSettlement.toInstitution.jurisdictionFlag} {selectedSettlement.toInstitution.name}</span>
+                </div>
+                <div className="flex flex-col gap-1 border-b border-vault-border/50 pb-2">
+                  <div className="flex justify-between">
+                    <span className="text-muted-vault">Tx Hash</span>
+                    <a 
+                      href={getSolanaExplorerTxUrl(selectedSettlement.txHash)} 
+                      target="_blank" 
+                      rel="noreferrer"
+                      className="text-teal hover:underline flex items-center gap-1"
+                    >
+                      {selectedSettlement.txHash.slice(0, 12)}...{selectedSettlement.txHash.slice(-12)}
+                      <ExternalLink className="size-3" />
+                    </a>
+                  </div>
+                </div>
+                <div className="flex justify-between border-b border-vault-border/50 pb-2">
+                  <span className="text-muted-vault">Initiated At</span>
+                  <span>{formatDate(selectedSettlement.initiatedAt)}</span>
+                </div>
+                {selectedSettlement.completedAt && (
+                  <div className="flex justify-between pb-2">
+                    <span className="text-muted-vault">Completed At</span>
+                    <span>{formatDate(selectedSettlement.completedAt)}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

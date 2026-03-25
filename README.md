@@ -2,6 +2,7 @@
 
 > **StableHacks 2026 Submission**
 > - **Core Track**: Cross-Border Stablecoin Treasury
+> - **Hero Track**: AMINA Bank — Institutional Compliance-First Architecture
 > - **Additional Implementations**: Institutional Permissioned DeFi Vaults & RWA-Backed Commodity Vaults
 VaultOX is a compliance-native institutional treasury platform built on Solana. It enables regulated financial institutions to move stablecoins cross-border with full on-chain KYC enforcement, Travel Rule payloads on every settlement, and a real-time audit trail that satisfies FINMA, MiCA, and MAS regulatory requirements.
 
@@ -30,19 +31,17 @@ VaultOX is a compliance-native institutional treasury platform built on Solana. 
 │               NestJS 10 Backend API                       │
 │  Auth · Compliance · Vaults · Settlements · Reports       │
 │  Prisma ORM · PostgreSQL · JWT · Travel Rule Engine       │
-└──────┬────────────────┬───────────────────────┬──────────┘
-       │                │                       │
-┌──────▼──────┐  ┌──────▼──────┐  ┌────────────▼────────┐
-│  Solana     │  │ PostgreSQL  │  │ Cloudinary          │
-│  Devnet     │  │ (Prisma)    │  │ (Report Storage)    │
-│             │  │             │  │                     │
-│ compliance_ │  │ settlements │  │ /vaultox/reports/   │
-│ registry    │  │ kyc_requests│  │ *.json              │
-│ vault_      │  │ aml_screen  │  └─────────────────────┘
-│ program     │  │ audit_events│
-│ settlement_ │  │ reports     │
-│ engine      │  └─────────────┘
-└─────────────┘
+└──┬──────────┬──────────┬──────────┬──────────┬──────────┘
+   │          │          │          │          │
+┌──▼─────┐  ┌▼────────┐ ┌▼────────┐┌▼────────┐┌▼──────────┐
+│ Solana │  │PostgreSQL│ │Cloudinary││Solstice ││ Fireblocks│
+│ Devnet │  │(Prisma)  │ │(Reports) ││Yield API││ MPC Signer│
+│        │  │          │ │          ││USX/eUSX ││(Prod Arch)│
+│ compli │  │settlements│ └─────────┘└─────────┘└───────────┘
+│ _ance  │  │kyc_reqs  │
+│ vault  │  │aml_screen│
+│ settle │  │audit_evts│
+└────────┘  └──────────┘
 ```
 
 ---
@@ -178,7 +177,7 @@ Verify deployments on [Solana Explorer (Devnet)](https://explorer.solana.com/?cl
 | Requirement        | Implementation                                                                                    |
 | ------------------ | ------------------------------------------------------------------------------------------------- |
 | KYC                | On-chain whitelist (`compliance_registry`) + backend credential status                            |
-| AML / KYT          | Deterministic risk scoring persisted per wallet to `aml_screenings` table                         |
+| AML / KYT          | Rules-based risk scoring persisted per wallet to `aml_screenings` table                           |
 | Travel Rule (FATF) | Required payload on every settlement above threshold; stored in `settlements.travel_rule_payload` |
 | Audit Trail        | All auth, settlement, compliance events written to `audit_events` table                           |
 | Regulatory Reports | FINMA · MiCA · MAS report generation from live data, uploaded to Cloudinary                       |
@@ -187,10 +186,12 @@ Verify deployments on [Solana Explorer (Devnet)](https://explorer.solana.com/?cl
 
 ## Partners
 
-- **AMINA Bank** — Target institutional client and hackathon judge
-- **SIX Financial Information** — FX and precious metals price feeds (API key pending)
-- **Solstice** — Yield infrastructure (USX stablecoin, YieldVault) — Phase 2
-- **Fireblocks** — MPC custody reference architecture
+- **AMINA Bank** — Target institutional client and hackathon hero track judge
+- **SIX Financial Information** — FX and precious metals price feeds via mTLS GraphQL API
+- **Solstice** — Yield infrastructure (USX stablecoin, eUSX YieldVault) — live on devnet
+- **Fireblocks** — MPC custody reference architecture for production transaction signing
+- **Keyrock** — Planned institutional liquidity provision and market-making integration
+- **Steakhouse Financial** — Treasury analytics and reporting advisory
 
 ---
 

@@ -9,6 +9,8 @@ import {
   ExternalLink,
   Shield,
   FileText,
+  X,
+  Loader,
 } from "lucide-react";
 import { formatDate, formatAddress } from "@/utils/format";
 import type {
@@ -25,12 +27,23 @@ import { TierBadge } from "@/components/shared/TierBadge";
 import { AuditBadge, StatusBadge } from "@/components/shared/StatusBadge";
 import { ComplianceRing } from "@/components/dashboard/ComplianceRing";
 import { Tooltip } from "@/components/shared/Tooltip";
+import api from "@/services/api";
+
+const SCORE_LABELS: Record<keyof ComplianceScores, string> = {
+  kycDepth: "KYC Depth",
+  amlCoverage: "AML Coverage",
+  jurisdictionReach: "Jurisdiction Reach",
+  reportingQuality: "Reporting Quality",
+  transactionLimits: "Tx Limits",
+};
 
 export function ComplianceClient() {
-  const { tier, credentialStatus } = useAuthStore();
+  const { tier, credentialStatus, walletAddress } = useAuthStore();
   const { credential, auditEvents, isLoadingCredential, isLoadingAuditEvents } =
     useCompliance();
   const [eventFilter, setEventFilter] = useState<AuditEventType | "all">("all");
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const safeEvents = (auditEvents || []) as AuditEvent[];
 
@@ -176,8 +189,18 @@ export function ComplianceClient() {
                 </div>
               </div>
 
-              {/* Tier badge */}
-              {tier && <TierBadge tier={tier} size="lg" />}
+              {/* Tier badge and Upgrade Action */}
+              <div className="flex items-center justify-between border-t border-vault-border/50 pt-4 mt-2">
+                {tier && <TierBadge tier={tier} size="lg" />}
+                {tier !== null && tier < 3 && (
+                  <button 
+                    onClick={() => setShowUpgradeModal(true)}
+                    className="rounded-sm border border-vault-border px-3 py-1.5 font-heading text-xs text-gold transition-colors hover:border-gold/30 hover:bg-gold/10 hover:shadow-[0_0_10px_rgba(212,175,55,0.1)]"
+                  >
+                    Request Tier Upgrade
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* ── Right: Radar chart ── */}
@@ -207,6 +230,9 @@ export function ComplianceClient() {
                   ][]
                 ).map(([key, val]) => (
                   <div key={key} className="flex items-center gap-2">
+                    <span className="font-body text-[10px] text-muted-vault w-24 shrink-0">
+                      {SCORE_LABELS[key as keyof ComplianceScores] ?? key}
+                    </span>
                     <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-vault-elevated">
                       <motion.div
                         className="h-full rounded-full bg-teal"
@@ -424,6 +450,74 @@ export function ComplianceClient() {
           </div>
         </motion.div>
       </section>
+
+      {/* ── Tier Upgrade Request Modal ── */}
+      {showUpgradeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-vault-base/80 backdrop-blur-sm"
+            // onClick={() => !isSubmitting && setShowUpgradeModal(false)} // Removed to prevent accidental closure
+          />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="relative w-full max-w-md overflow-hidden rounded-md border border-vault-border bg-vault-surface shadow-2xl"
+          >
+            <div className="flex items-center justify-between border-b border-vault-border bg-vault-elevated px-6 py-4">
+              <h3 className="font-heading text-lg font-semibold text-text-primary">
+                Request Limit Upgrade
+              </h3>
+              <button
+                onClick={() => !isSubmitting && setShowUpgradeModal(false)}
+                className="text-muted-vault hover:text-text-primary"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+            
+            <div className="p-6">
+              <p className="font-body text-sm text-muted-vault mb-6">
+                Submit a request to upgrade your institution's compliance tier to unlock higher settlement limits and access institutional DeFi strategies. Our compliance desk will review your on-chain records and activity.
+              </p>
+
+              <div className="flex justify-end gap-3 mt-4">
+                <button
+                  onClick={() => setShowUpgradeModal(false)}
+                  disabled={isSubmitting}
+                  className="rounded-sm border border-vault-border px-4 py-2 font-heading text-xs text-text-primary transition-colors hover:bg-vault-elevated disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={async () => {
+                    setIsSubmitting(true);
+                    try {
+                      await api.post("/auth/request-access", {
+                        walletAddress: walletAddress,
+                        institutionName: (credential as any).institutionName,
+                        jurisdiction: credential.jurisdiction,
+                        tier: 3
+                      });
+                      alert("Upgrade request submitted successfully! Pending compliance review.");
+                      setShowUpgradeModal(false);
+                    } catch (err) {
+                      console.error("Upgrade error", err);
+                      alert("Failed to submit upgrade request. Please try again later.");
+                    } finally {
+                      setIsSubmitting(false);
+                    }
+                  }}
+                  disabled={isSubmitting}
+                  className="flex min-w-[120px] items-center justify-center gap-2 rounded-sm bg-gold px-4 py-2 font-heading text-xs font-semibold text-vault-base transition-colors hover:bg-gold/90 disabled:opacity-50"
+                >
+                  {isSubmitting ? <Loader className="size-3 animate-spin"/> : null}
+                  Submit Request
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

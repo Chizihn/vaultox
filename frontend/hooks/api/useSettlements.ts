@@ -5,6 +5,7 @@ import type { Settlement } from "@/types";
 import type { InitiateSettlementRequest } from "@/services/settlements";
 import { useWalletActions, useWalletConnection } from "@solana/react-hooks";
 import { getTransactionDecoder } from "@solana/transactions";
+import { toast } from "sonner";
 
 interface SettlementsResponse {
   settlements: Settlement[];
@@ -53,7 +54,7 @@ function decodeBase64(value: string): Uint8Array {
 export const useSettlements = () => {
   const queryClient = useQueryClient();
   const walletAddress = useAuthStore((state) => state.walletAddress);
-  const { status, wallet } = useWalletConnection();
+  const { wallet } = useWalletConnection();
   const walletActions = useWalletActions();
 
   const submitUnsignedSettlementTransaction = async (
@@ -74,6 +75,20 @@ export const useSettlements = () => {
 
       if (!wallet && typeof walletActions?.sendTransaction !== "function") {
         throw new Error("Connect a Solana wallet to submit this settlement.");
+      }
+
+      // Hard guard: the wallet connected in the browser must match the wallet address
+      // from the authenticated session (JWT).
+      if (walletAddress && wallet?.account?.address) {
+        const connectedWalletAddress = wallet.account.address.toString();
+        if (connectedWalletAddress !== walletAddress) {
+          toast.error(
+            "Wallet mismatch: your connected wallet does not match the active session. Please disconnect and reconnect.",
+          );
+          throw new Error(
+            `Wallet mismatch: connected=${connectedWalletAddress} session=${walletAddress}`,
+          );
+        }
       }
 
       const txBytes = decodeBase64(responseData.unsignedTransaction);

@@ -10,6 +10,7 @@ import {
   Shield,
   TrendingUp,
   ArrowRight,
+  AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatPercentage } from "@/utils/format";
@@ -24,6 +25,7 @@ import { useVaults } from "@/hooks/api/useVaults";
 import { YieldLadder } from "@/components/dashboard/YieldLadder";
 import { VaultActivityList } from "@/components/dashboard/VaultActivityList";
 import { DepositPanel } from "@/components/dashboard/DepositPanel";
+import { WithdrawPanel } from "@/components/dashboard/WithdrawPanel";
 import { SparklineChart } from "@/components/dashboard/SparklineChart";
 import { TierBadge } from "@/components/shared/TierBadge";
 import { Tooltip } from "@/components/shared/Tooltip";
@@ -67,12 +69,16 @@ export function VaultsClient() {
     positions,
     isLoadingStrategies,
     isLoadingPositions,
-    withdraw,
+    cancelMint,
+    cancelRedeem,
+    isCancellingMint,
+    isCancellingRedeem,
   } = useVaults();
 
   const [activeTab, setActiveTab] = useState<Tab>("Available Strategies");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [depositTarget, setDepositTarget] = useState<string | null>(null);
+  const [withdrawTarget, setWithdrawTarget] = useState<VaultPosition | null>(null);
   const [commodityQuotes, setCommodityQuotes] = useState<
     Record<string, MarketQuote>
   >({});
@@ -138,11 +144,7 @@ export function VaultsClient() {
   const executeWithdraw = async (positionId: string) => {
     const position = safePositions.find((entry) => entry.id === positionId);
     if (!position) return;
-    try {
-      await withdraw({ positionId, amount: position.depositedAmount });
-    } catch (error) {
-      console.error("Failed to initiate withdrawal", error);
-    }
+    setWithdrawTarget(position);
   };
 
   const visibleStrategies =
@@ -190,6 +192,51 @@ export function VaultsClient() {
           {tier && <TierBadge tier={tier} size="md" />}
         </div>
       </div>
+
+      {/* ── Summary Cards ── */}
+      {safePositions.length > 0 && (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          {[
+            {
+              label: "Total Assets Under Management",
+              value: formatCurrency(
+                safePositions.reduce((a, p) => a + p.currentValue, 0),
+              ),
+              icon: Shield,
+              color: "text-gold",
+            },
+            {
+              label: "Total Accrued Yield",
+              value: formatCurrency(
+                safePositions.reduce((a, p) => a + p.accruedYield, 0),
+              ),
+              icon: TrendingUp,
+              color: "text-teal",
+            },
+            {
+              label: "Active Strategies",
+              value: safePositions.length.toString(),
+              icon: ArrowRight,
+              color: "text-text-primary",
+            },
+          ].map((stat) => (
+            <div
+              key={stat.label}
+              className="rounded-sm border border-vault-border bg-vault-surface p-4"
+            >
+              <p className="mb-1 font-body text-[10px] uppercase tracking-widest text-muted-vault">
+                {stat.label}
+              </p>
+              <div className="flex items-end justify-between">
+                <p className={cn("font-heading text-xl font-bold", stat.color)}>
+                  {stat.value}
+                </p>
+                <stat.icon className="size-4 text-muted-vault/40" />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* ── Tab bar ── */}
       <div
@@ -528,7 +575,7 @@ export function VaultsClient() {
                                   >
                                     Deposit
                                   </button>
-                                  {position && (
+                                  {position && position.depositedAmount > 0 && (
                                     <button
                                       onClick={() =>
                                         executeWithdraw(position.id)
@@ -538,6 +585,68 @@ export function VaultsClient() {
                                       Withdraw
                                     </button>
                                   )}
+                                </div>
+                              )}
+
+                              {/* Solstice institutional recovery (CancelMint / CancelRedeem) */}
+                              {position &&
+                                strategy.id.includes("solstice") &&
+                                position.depositedAmount <= 0 && (
+                                <div className="mt-4 rounded-sm border border-warn/25 bg-warn/5 p-3">
+                                  <div className="mb-2 flex items-center gap-2">
+                                    <AlertTriangle className="size-3.5 shrink-0 text-warn" />
+                                    <p className="font-heading text-[10px] font-semibold uppercase tracking-wider text-warn">
+                                      Protocol recovery
+                                    </p>
+                                  </div>
+                                  <p className="mb-3 font-body text-[11px] leading-relaxed text-muted-vault">
+                                    Emergency exits for stuck treasury flows: cancel a pending{" "}
+                                    <span className="text-text-primary">mint</span> (before
+                                    ConfirmMint/Lock) or a pending{" "}
+                                    <span className="text-text-primary">redeem</span> (before
+                                    ConfirmRedeem). Misuse may fail on-chain — use only when
+                                    operations are stuck.
+                                  </p>
+                                  <div className="flex flex-wrap gap-2">
+                                    <button
+                                      type="button"
+                                      disabled={isCancellingMint}
+                                      onClick={() => {
+                                        if (
+                                          !window.confirm(
+                                            "Submit CancelMint to recover from a stuck mint request? You will sign a transaction.",
+                                          )
+                                        ) {
+                                          return;
+                                        }
+                                        void cancelMint();
+                                      }}
+                                      className="rounded-sm border border-warn/40 bg-vault-base px-3 py-1.5 font-heading text-[11px] font-semibold text-warn transition-colors hover:bg-warn/10 disabled:opacity-50"
+                                    >
+                                      {isCancellingMint
+                                        ? "Submitting…"
+                                        : "Cancel pending mint"}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={isCancellingRedeem}
+                                      onClick={() => {
+                                        if (
+                                          !window.confirm(
+                                            "Submit CancelRedeem to recover from a stuck redeem request? You will sign a transaction.",
+                                          )
+                                        ) {
+                                          return;
+                                        }
+                                        void cancelRedeem();
+                                      }}
+                                      className="rounded-sm border border-warn/40 bg-vault-base px-3 py-1.5 font-heading text-[11px] font-semibold text-warn transition-colors hover:bg-warn/10 disabled:opacity-50"
+                                    >
+                                      {isCancellingRedeem
+                                        ? "Submitting…"
+                                        : "Cancel pending redeem"}
+                                    </button>
+                                  </div>
                                 </div>
                               )}
                             </div>
@@ -561,44 +670,6 @@ export function VaultsClient() {
             <div className="mt-6 border-t border-vault-border pt-4">
               <VaultActivityList />
             </div>
-
-            {/* Summary positions */}
-            {safePositions.length > 0 && (
-              <div className="mt-6 border-t border-vault-border pt-4">
-                <p className="mb-3 font-body text-[10px] uppercase tracking-widest text-muted-vault">
-                  Active Positions
-                </p>
-                <ul className="space-y-2">
-                  {safePositions.map((p: VaultPosition) => (
-                    <li
-                      key={p.id}
-                      className="flex items-center justify-between"
-                    >
-                      <span className="font-body text-[11px] text-text-primary truncate max-w-35">
-                        {p.strategyName}
-                      </span>
-                      <span className="font-heading text-[11px] text-gold">
-                        {formatCurrency(p.currentValue, { compact: true })}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-                <div className="mt-3 flex items-center justify-between border-t border-vault-border pt-3">
-                  <span className="font-body text-[11px] text-muted-vault">
-                    Total
-                  </span>
-                  <span className="font-heading text-sm text-gold">
-                    {formatCurrency(
-                      safePositions.reduce(
-                        (a: number, p: VaultPosition) => a + p.currentValue,
-                        0,
-                      ),
-                      { compact: true },
-                    )}
-                  </span>
-                </div>
-              </div>
-            )}
           </div>
         </aside>
       </div>
@@ -609,6 +680,13 @@ export function VaultsClient() {
         userTier={userTier}
         isOpen={depositTarget !== null}
         onClose={() => setDepositTarget(null)}
+      />
+
+      {/* Withdraw Panel */}
+      <WithdrawPanel
+        position={withdrawTarget}
+        isOpen={withdrawTarget !== null}
+        onClose={() => setWithdrawTarget(null)}
       />
     </div>
   );

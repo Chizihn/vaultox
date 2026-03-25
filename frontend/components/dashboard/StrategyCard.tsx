@@ -96,7 +96,7 @@ export function StrategyCard({
           <p className="font-body text-[10px] uppercase tracking-widest text-muted-vault">
             TVL
           </p>
-          <p className="font-heading text-sm text-text-primary">
+          <p className="font-body text-sm text-text-primary">
             {formatCurrency(strategy.tvl, { compact: true })}
           </p>
         </div>
@@ -105,7 +105,7 @@ export function StrategyCard({
             <p className="font-body text-[10px] uppercase tracking-widest text-muted-vault">
               Your Position
             </p>
-            <p className="font-heading text-sm text-gold">
+            <p className="font-body text-sm text-gold">
               {formatCurrency(position.currentValue, { compact: true })}
             </p>
           </div>
@@ -115,7 +115,7 @@ export function StrategyCard({
             <p className="font-body text-[10px] uppercase tracking-widest text-muted-vault">
               Accrued Yield
             </p>
-            <p className="font-heading text-sm text-teal">
+            <p className="font-body text-sm text-teal">
               {formatCurrency(position.accruedYield)}
             </p>
           </div>

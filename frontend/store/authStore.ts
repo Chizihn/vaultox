@@ -11,6 +11,8 @@ const noopStorage = {
   removeItem: () => {},
 };
 
+export type AuthBootstrapPhase = "idle" | "loading" | "ready";
+
 const initialAuthState = {
   isConnected: false,
   institution: null,
@@ -18,6 +20,8 @@ const initialAuthState = {
   tier: null,
   credentialStatus: "unregistered" as CredentialStatus,
   jwt: null,
+  /** Not persisted: token/credential bootstrap for global loader + API sync */
+  authBootstrap: "idle" as AuthBootstrapPhase,
 };
 
 type PersistedAuthSlice = Pick<
@@ -32,7 +36,12 @@ type PersistedAuthSlice = Pick<
 
 function getResetAuthState(): PersistedAuthSlice {
   return {
-    ...initialAuthState,
+    isConnected: false,
+    institution: null,
+    walletAddress: null,
+    tier: null,
+    credentialStatus: "unregistered",
+    jwt: null,
   };
 }
 
@@ -43,6 +52,7 @@ export interface AuthState {
   tier: ComplianceTier | null;
   credentialStatus: CredentialStatus;
   jwt: string | null;
+  authBootstrap: AuthBootstrapPhase;
   connect: (
     status: CredentialStatus,
     institution?: Institution | null,
@@ -51,6 +61,8 @@ export interface AuthState {
   ) => void;
   disconnect: () => void;
   setTier: (tier: ComplianceTier) => void;
+  setWalletAddress: (walletAddress: string | null) => void;
+  setAuthBootstrap: (phase: AuthBootstrapPhase) => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -71,10 +83,16 @@ export const useAuthStore = create<AuthState>()(
       disconnect: () =>
         set(() => {
           clearAuthSession();
-          return getResetAuthState();
+          return {
+            ...getResetAuthState(),
+            authBootstrap: "ready" as AuthBootstrapPhase,
+          };
         }),
 
       setTier: (tier) => set({ tier }),
+      setWalletAddress: (walletAddress) => set({ walletAddress }),
+
+      setAuthBootstrap: (phase) => set({ authBootstrap: phase }),
     }),
     {
       name: AUTH_STORE_KEY,
@@ -96,6 +114,11 @@ export const useAuthStore = create<AuthState>()(
         tier: state.tier,
         credentialStatus: state.credentialStatus,
         jwt: state.jwt,
+      }),
+      merge: (persisted, current) => ({
+        ...current,
+        ...(persisted as object),
+        authBootstrap: current.authBootstrap,
       }),
     },
   ),

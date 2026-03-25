@@ -50,7 +50,7 @@ export function Tooltip({
   };
 
   return (
-    <div
+    <span
       className="relative inline-block"
       onMouseEnter={() => setIsVisible(true)}
       onMouseLeave={() => setIsVisible(false)}
@@ -84,6 +84,6 @@ export function Tooltip({
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </span>
   );
 }

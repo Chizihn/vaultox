@@ -59,6 +59,14 @@ const FAQ_ITEMS = [
     a: "Vault yields depend on the strategy risk tier. Low-risk T-Bill strategies offer ~4.2% APY and are accessible to all verified institutions. Medium-risk private credit (~7.8%) requires Tier 2, and high-risk commodity strategies (~11.4%) require Tier 1.",
   },
   {
+    q: "Why can withdrawal be delayed after deposit?",
+    a: "Solstice strategies differ by how liquidity is released. Solstice Liquidity is designed for instant withdrawal. Solstice Yield Vault follows an unlock/cooldown window (24h) before Withdraw is allowed, so a just-deposited position may not be redeemable immediately. Solstice Compounding uses a longer lock (7 days).",
+  },
+  {
+    q: "How does emergency recovery work?",
+    a: "If a Solstice mint or redeem flow gets stuck in a pending state, VaultOX provides protocol recovery exits: CancelMint (revert a pending mint and recover collateral) and CancelRedeem (cancel a pending redeem and restore the USX/eUSX position).",
+  },
+  {
     q: "Is VaultOX custodial?",
     a: "No. VaultOX is non-custodial. All transactions are signed by your institution's wallet. The platform assembles unsigned transactions server-side, but only your wallet can sign and submit them to the Solana network.",
   },
@@ -552,7 +560,7 @@ export function GuideClient() {
                     },
                     {
                       title: "AML Screening",
-                      desc: "Deterministic risk scoring is run on every wallet. Results are persisted and included in compliance reports.",
+                      desc: "Rules-based risk scoring is run on every wallet. Results are persisted and included in compliance reports.",
                       path: "/compliance",
                     },
                   ].map((card) => (

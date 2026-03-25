@@ -52,7 +52,7 @@ import { getSolanaExplorerTxUrl } from "@/config/solana";
 
 export function AdminKycClient() {
   const [adminKey, setAdminKey] = useState("");
-  const [resyncWalletsInput, setResyncWalletsInput] = useState<string>("");
+  // const [resyncWalletsInput, setResyncWalletsInput] = useState<string>("");
   const [debouncedAdminKey, setDebouncedAdminKey] = useState("");
   const [validatedAdminKey, setValidatedAdminKey] = useState<string | null>(
     null,
@@ -250,7 +250,7 @@ export function AdminKycClient() {
 
   return (
     <div className="space-y-6">
-      {isUnlocked && (
+      {/* {isUnlocked && (
         <section className="rounded-sm border border-vault-border bg-vault-surface p-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-center">
             <input
@@ -291,7 +291,7 @@ export function AdminKycClient() {
             </span>
           </div>
         </section>
-      )}
+      )} */}
       <div>
         <h1 className="font-heading text-2xl text-gold">KYC Admin Queue</h1>
         <p className="font-body text-xs text-muted-vault">

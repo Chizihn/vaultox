@@ -52,6 +52,7 @@ export const useDashboard = () => {
       return {
         activeSettlements: list.filter((s) => s.status === "settling").length,
         pendingSettlements: list.filter((s) => s.status === "pending").length,
+        totalSettlements: list.length,
       };
     },
     enabled: !!walletAddress,
@@ -70,6 +71,7 @@ export const useDashboard = () => {
           yieldToday: portfolio?.totalAccruedYield ?? 0,
           activeSettlements: settlementCounts?.activeSettlements ?? 0,
           pendingSettlements: settlementCounts?.pendingSettlements ?? 0,
+          totalSettlements: settlementCounts?.totalSettlements ?? 0,
           complianceScore,
         }
       : undefined;

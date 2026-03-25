@@ -9,6 +9,12 @@ import { Injectable, Logger, BadRequestException } from "@nestjs/common";
 import { PublicKey, AccountMeta } from "@solana/web3.js";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { 
+  createAssociatedTokenAccountIdempotentInstruction, 
+  getAssociatedTokenAddressSync, 
+  ASSOCIATED_TOKEN_PROGRAM_ID, 
+  TOKEN_PROGRAM_ID 
+} from "@solana/spl-token";
 
 const execFileAsync = promisify(execFile);
 
@@ -330,8 +336,7 @@ export class SolsticeService {
   }
 
   /**
-   * Reconstruct a Solana Instruction from Solstice API response.
-   * The API returns accounts, data, and program_id as byte arrays.
+   * Reconstruct a Solana Instruction (Buffer format) from Solstice API response.
    */
   private reconstructInstruction(
     instructionData: SolsticeInstructionResponse["instruction"],
@@ -373,17 +378,23 @@ export class SolsticeService {
    */
   private toSolanaInstruction(
     instructionData: SolsticeInstructionResponse["instruction"],
+    userWallet: string,
   ): SolanaInstruction {
     this.logger.debug(
       `[toSolanaInstruction] Converting API response to Solana Instruction`,
     );
 
     const programId = new PublicKey(instructionData.program_id);
+    
+    // Maintain EXACT account order and flags from Solstice API.
+    // De-duplication or stripping signers often breaks on-chain program logic
+    // and causes signature verification failures in simulation.
     const keys: AccountMeta[] = instructionData.accounts.map((acc) => ({
       pubkey: new PublicKey(acc.pubkey),
-      isSigner: acc.is_signer,
+      isSigner: acc.is_signer, // Preserve original signer flag from API
       isWritable: acc.is_writable,
     }));
+    
     const data = Buffer.from(instructionData.data);
 
     this.logger.debug(
@@ -575,7 +586,52 @@ export class SolsticeService {
     );
     const instructions: SolanaInstruction[] = [];
 
+    const userPubkey = new PublicKey(userWallet);
+    const usxMint = new PublicKey(this.mints.usx);
+    const eusxMint = new PublicKey(this.mints.eusx);
+    const payerPubkey = payerWallet ? new PublicKey(payerWallet) : userPubkey;
+
     try {
+      // Step 0: Ensure ATAs exist (idempotent)
+      this.logger.log(`[buildDepositFlowInstructions] Step 0: Ensuring USX and eUSX ATAs exist...`);
+      
+      const usxAta = getAssociatedTokenAddressSync(usxMint, userPubkey);
+      const eusxAta = getAssociatedTokenAddressSync(eusxMint, userPubkey);
+
+      instructions.push({
+        programId: ASSOCIATED_TOKEN_PROGRAM_ID,
+        keys: [
+          { pubkey: payerPubkey, isSigner: true, isWritable: true },
+          { pubkey: usxAta, isSigner: false, isWritable: true },
+          { pubkey: userPubkey, isSigner: false, isWritable: false },
+          { pubkey: usxMint, isSigner: false, isWritable: false },
+          { pubkey: PublicKey.default, isSigner: false, isWritable: false }, // System program placeholder if needed, but spl-token usually has its own
+          { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+        ],
+        // Actually it's better to use the proper helper to get the instruction and then convert it
+        ...this.toSolanaInstructionFromWeb3(
+          createAssociatedTokenAccountIdempotentInstruction(
+            payerPubkey,
+            usxAta,
+            userPubkey,
+            usxMint
+          )
+        )
+      });
+
+      instructions.push({
+        ...this.toSolanaInstructionFromWeb3(
+          createAssociatedTokenAccountIdempotentInstruction(
+            payerPubkey,
+            eusxAta,
+            userPubkey,
+            eusxMint
+          )
+        )
+      });
+
+      this.logger.log(`[buildDepositFlowInstructions] Step 0 complete: ATA instructions added`);
+
       // Step 1: Request mint (USDC → USX)
       this.logger.log(
         `[buildDepositFlowInstructions] Step 1/3: Building RequestMint instruction...`,
@@ -590,7 +646,7 @@ export class SolsticeService {
         },
       };
       const mintResponse = await this.fetchInstructionFromApi(mintRequest);
-      instructions.push(this.toSolanaInstruction(mintResponse.instruction));
+      instructions.push(this.toSolanaInstruction(mintResponse.instruction, payerWallet || userWallet));
       this.logger.log(
         `[buildDepositFlowInstructions] Step 1 complete: RequestMint instruction added`,
       );
@@ -609,7 +665,7 @@ export class SolsticeService {
       };
       const confirmResponse =
         await this.fetchInstructionFromApi(confirmRequest);
-      instructions.push(this.toSolanaInstruction(confirmResponse.instruction));
+      instructions.push(this.toSolanaInstruction(confirmResponse.instruction, payerWallet || userWallet));
       this.logger.log(
         `[buildDepositFlowInstructions] Step 2 complete: ConfirmMint instruction added`,
       );
@@ -627,7 +683,7 @@ export class SolsticeService {
         },
       };
       const lockResponse = await this.fetchInstructionFromApi(lockRequest);
-      instructions.push(this.toSolanaInstruction(lockResponse.instruction));
+      instructions.push(this.toSolanaInstruction(lockResponse.instruction, payerWallet || userWallet));
       this.logger.log(
         `[buildDepositFlowInstructions] Step 3 complete: Lock instruction added`,
       );
@@ -654,12 +710,43 @@ export class SolsticeService {
     amount: number,
     payerWallet?: string,
   ): Promise<SolanaInstruction[]> {
-    this.logger.log(
-      `[buildWithdrawalFlowInstructions] Building withdrawal flow instructions for user=${userWallet}, amount=${amount}`,
-    );
     const instructions: SolanaInstruction[] = [];
 
+    const userPubkey = new PublicKey(userWallet);
+    const usxMint = new PublicKey(this.mints.usx);
+    const usdcMint = new PublicKey(this.mints.usdc);
+    const payerPubkey = payerWallet ? new PublicKey(payerWallet) : userPubkey;
+
     try {
+      // Step 0: Ensure ATAs exist
+      this.logger.log(`[buildWithdrawalFlowInstructions] Step 0: Ensuring USDC and USX ATAs exist...`);
+      const usdcAta = getAssociatedTokenAddressSync(usdcMint, userPubkey);
+      const usxAta = getAssociatedTokenAddressSync(usxMint, userPubkey);
+
+      instructions.push({
+        ...this.toSolanaInstructionFromWeb3(
+          createAssociatedTokenAccountIdempotentInstruction(
+            payerPubkey,
+            usdcAta,
+            userPubkey,
+            usdcMint
+          )
+        )
+      });
+
+      instructions.push({
+        ...this.toSolanaInstructionFromWeb3(
+          createAssociatedTokenAccountIdempotentInstruction(
+            payerPubkey,
+            usxAta,
+            userPubkey,
+            usxMint
+          )
+        )
+      });
+
+      this.logger.log(`[buildWithdrawalFlowInstructions] Step 0 complete: ATA instructions added`);
+
       // Step 1: Unlock from yield vault (eUSX → USX)
       this.logger.log(
         `[buildWithdrawalFlowInstructions] Step 1/4: Building Unlock instruction...`,
@@ -673,7 +760,7 @@ export class SolsticeService {
         },
       };
       const unlockResponse = await this.fetchInstructionFromApi(unlockRequest);
-      instructions.push(this.toSolanaInstruction(unlockResponse.instruction));
+      instructions.push(this.toSolanaInstruction(unlockResponse.instruction, payerWallet || userWallet));
       this.logger.log(
         `[buildWithdrawalFlowInstructions] Step 1 complete: Unlock instruction added`,
       );
@@ -692,7 +779,7 @@ export class SolsticeService {
       };
       const withdrawResponse =
         await this.fetchInstructionFromApi(withdrawRequest);
-      instructions.push(this.toSolanaInstruction(withdrawResponse.instruction));
+      instructions.push(this.toSolanaInstruction(withdrawResponse.instruction, payerWallet || userWallet));
       this.logger.log(
         `[buildWithdrawalFlowInstructions] Step 2 complete: Withdraw instruction added`,
       );
@@ -711,7 +798,7 @@ export class SolsticeService {
         },
       };
       const redeemResponse = await this.fetchInstructionFromApi(redeemRequest);
-      instructions.push(this.toSolanaInstruction(redeemResponse.instruction));
+      instructions.push(this.toSolanaInstruction(redeemResponse.instruction, payerWallet || userWallet));
       this.logger.log(
         `[buildWithdrawalFlowInstructions] Step 3 complete: RequestRedeem instruction added`,
       );
@@ -730,7 +817,7 @@ export class SolsticeService {
       };
       const confirmResponse =
         await this.fetchInstructionFromApi(confirmRequest);
-      instructions.push(this.toSolanaInstruction(confirmResponse.instruction));
+      instructions.push(this.toSolanaInstruction(confirmResponse.instruction, payerWallet || userWallet));
       this.logger.log(
         `[buildWithdrawalFlowInstructions] Step 4 complete: ConfirmRedeem instruction added`,
       );
@@ -887,5 +974,209 @@ export class SolsticeService {
         transport: "curl",
       });
     }
+  }
+
+  /**
+   * Helper to convert a standard @solana/web3.js Instruction to our internal SolanaInstruction interface.
+   */
+  private toSolanaInstructionFromWeb3(inst: any): SolanaInstruction {
+    return {
+      programId: inst.programId,
+      keys: inst.keys,
+      data: inst.data,
+    };
+  }
+
+  /**
+   * Step 1 of Solstice Deposit: RequestMint (USDC → USX)
+   */
+  async buildDepositStep1Instructions(
+    userWallet: string,
+    amount: number,
+  ): Promise<SolanaInstruction[]> {
+    const instructions: SolanaInstruction[] = [];
+    const userPubkey = new PublicKey(userWallet);
+    const usxMint = new PublicKey(this.mints.usx);
+    const eusxMint = new PublicKey(this.mints.eusx);
+
+    // Ensure ATAs exist
+    const usxAta = getAssociatedTokenAddressSync(usxMint, userPubkey);
+    const eusxAta = getAssociatedTokenAddressSync(eusxMint, userPubkey);
+    instructions.push(this.toSolanaInstructionFromWeb3(
+      createAssociatedTokenAccountIdempotentInstruction(userPubkey, usxAta, userPubkey, usxMint)
+    ));
+    instructions.push(this.toSolanaInstructionFromWeb3(
+      createAssociatedTokenAccountIdempotentInstruction(userPubkey, eusxAta, userPubkey, eusxMint)
+    ));
+
+    // RequestMint only
+    const mintResponse = await this.fetchInstructionFromApi({
+      type: 'RequestMint',
+      data: { user: userWallet, amount, collateral: 'usdc' },
+    });
+    instructions.push(this.toSolanaInstruction(mintResponse.instruction, userWallet));
+
+    this.logger.log(`[buildDepositStep1] ${instructions.length} instructions built`);
+    return instructions;
+  }
+
+  async buildDepositStep2Instructions(
+    userWallet: string,
+    amount: number,
+  ): Promise<SolanaInstruction[]> {
+    const instructions: SolanaInstruction[] = [];
+
+    // ConfirmMint + Lock
+    const confirmResponse = await this.fetchInstructionFromApi({
+      type: 'ConfirmMint',
+      data: { user: userWallet, collateral: 'usdc' },
+    });
+    instructions.push(this.toSolanaInstruction(confirmResponse.instruction, userWallet));
+
+    const lockResponse = await this.fetchInstructionFromApi({
+      type: 'Lock',
+      data: { user: userWallet, amount },
+    });
+    instructions.push(this.toSolanaInstruction(lockResponse.instruction, userWallet));
+
+    this.logger.log(`[buildDepositStep2] ${instructions.length} instructions built`);
+    return instructions;
+  }
+
+  async buildConfirmMintInstruction_Only(
+    userWallet: string,
+  ): Promise<SolanaInstruction[]> {
+    const confirmResponse = await this.fetchInstructionFromApi({
+      type: 'ConfirmMint',
+      data: { user: userWallet, collateral: 'usdc' },
+    });
+    return [this.toSolanaInstruction(confirmResponse.instruction, userWallet)];
+  }
+
+  async buildLockInstruction_Only(
+    userWallet: string,
+    amount: number,
+  ): Promise<SolanaInstruction[]> {
+    const lockResponse = await this.fetchInstructionFromApi({
+      type: 'Lock',
+      data: { user: userWallet, amount },
+    });
+    return [this.toSolanaInstruction(lockResponse.instruction, userWallet)];
+  }
+
+  /**
+   * Discrete Withdraw Step 1: Unlock and Withdraw (eUSX -> USX)
+   */
+  async buildUnlockAndWithdrawInstructions_Only(
+    userWallet: string,
+    amount: number,
+    payerWallet?: string,
+  ): Promise<SolanaInstruction[]> {
+    const instructions: SolanaInstruction[] = [];
+    const payer = payerWallet || userWallet;
+    
+    const userPubkey = new PublicKey(userWallet);
+    const payerPubkey = new PublicKey(payer);
+    const usxMint = new PublicKey(this.mints.usx);
+    const eusxMint = new PublicKey(this.mints.eusx);
+
+    // 0. Ensure ATAs exist
+    const usxAta = getAssociatedTokenAddressSync(usxMint, userPubkey);
+    const eusxAta = getAssociatedTokenAddressSync(eusxMint, userPubkey);
+
+    instructions.push(this.toSolanaInstructionFromWeb3(
+      createAssociatedTokenAccountIdempotentInstruction(payerPubkey, usxAta, userPubkey, usxMint)
+    ));
+    instructions.push(this.toSolanaInstructionFromWeb3(
+      createAssociatedTokenAccountIdempotentInstruction(payerPubkey, eusxAta, userPubkey, eusxMint)
+    ));
+
+    // 1. Unlock
+    const unlockRequest: SolsticeInstructionRequest = {
+      type: "Unlock",
+      data: { user: userWallet, amount, ...(payerWallet && { payer: payerWallet }) },
+    };
+    const unlockRes = await this.fetchInstructionFromApi(unlockRequest);
+    instructions.push(this.toSolanaInstruction(unlockRes.instruction, payer));
+
+    // 2. Withdraw
+    const withdrawRequest: SolsticeInstructionRequest = {
+      type: "Withdraw",
+      data: { user: userWallet, amount, ...(payerWallet && { payer: payerWallet }) },
+    };
+    const withdrawRes = await this.fetchInstructionFromApi(withdrawRequest);
+    instructions.push(this.toSolanaInstruction(withdrawRes.instruction, payer));
+
+    return instructions;
+  }
+
+  /**
+   * Discrete Withdraw Step 2: RequestRedeem (USX -> USDC)
+   */
+  async buildRequestRedeemInstruction_Only(
+    userWallet: string,
+    amount: number,
+    payerWallet?: string,
+  ): Promise<SolanaInstruction[]> {
+    const payer = payerWallet || userWallet;
+    const request: SolsticeInstructionRequest = {
+      type: "RequestRedeem",
+      data: {
+        user: userWallet,
+        amount,
+        collateral: "usdc",
+        ...(payerWallet && { payer: payerWallet }),
+      },
+    };
+    const res = await this.fetchInstructionFromApi(request);
+    return [this.toSolanaInstruction(res.instruction, payer)];
+  }
+
+  /**
+   * Discrete Withdraw Step 3: ConfirmRedeem (Asset finalization)
+   */
+  async buildConfirmRedeemInstruction_Only(
+    userWallet: string,
+    payerWallet?: string,
+  ): Promise<SolanaInstruction[]> {
+    const payer = payerWallet || userWallet;
+    const request: SolsticeInstructionRequest = {
+      type: "ConfirmRedeem",
+      data: {
+        user: userWallet,
+        collateral: "usdc",
+        ...(payerWallet && { payer: payerWallet }),
+      },
+    };
+    const res = await this.fetchInstructionFromApi(request);
+    return [this.toSolanaInstruction(res.instruction, payer)];
+  }
+
+  /**
+   * Emergency exit: cancel a pending mint request (collateral recovery).
+   */
+  async buildCancelMintInstructions(
+    userWallet: string,
+    collateral: CollateralKind = "usdc",
+  ): Promise<SolanaInstruction[]> {
+    const response = await this.fetchInstructionFromApi({
+      type: "CancelMint",
+      data: { user: userWallet, collateral },
+    });
+    return [this.toSolanaInstruction(response.instruction, userWallet)];
+  }
+
+  /**
+   * Emergency exit: cancel a pending redeem request (USX position restored).
+   */
+  async buildCancelRedeemInstructions(
+    userWallet: string,
+    collateral: CollateralKind = "usdc",
+  ): Promise<SolanaInstruction[]> {
+    const response = await this.fetchInstructionFromApi({
+      type: "CancelRedeem",
+      data: { user: userWallet, collateral },
+    });
+    return [this.toSolanaInstruction(response.instruction, userWallet)];
   }
 }

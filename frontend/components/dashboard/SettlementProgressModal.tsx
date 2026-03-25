@@ -6,6 +6,9 @@ import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/utils/format";
 import type { SettlementStep } from "@/types";
 import { useReports } from "@/hooks/api/useReports";
+import { getSolanaExplorerTxUrl } from "@/config/solana";
+import { toast } from "sonner";
+import { getErrorMessage } from "@/utils/error-handler";
 
 interface SettlementProgressModalProps {
   isOpen: boolean;
@@ -16,6 +19,7 @@ interface SettlementProgressModalProps {
   amountUsdc: number;
   fromCity: string;
   toCity: string;
+  txHash?: string | null;
   onClose: () => void;
 }
 
@@ -28,6 +32,7 @@ export function SettlementProgressModal({
   amountUsdc,
   fromCity,
   toCity,
+  txHash,
   onClose,
 }: SettlementProgressModalProps) {
   const { generateReport, isGenerating } = useReports();
@@ -42,7 +47,7 @@ export function SettlementProgressModal({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 bg-vault-base/80 backdrop-blur-md"
-            onClick={isComplete ? onClose : undefined}
+            // onClick={isComplete ? onClose : undefined} // Removed to prevent accidental closure
           />
 
           {/* Modal */}
@@ -165,6 +170,25 @@ export function SettlementProgressModal({
                       Total settlement time
                     </p>
 
+                    {/* Travel Rule Payload */}
+                    <div className="mt-4 rounded-sm border border-vault-border bg-vault-elevated p-3 text-left">
+                      <p className="mb-2 font-heading text-[10px] uppercase tracking-widest text-gold">
+                        FATF Travel Rule Payload
+                      </p>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 font-body text-[11px]">
+                        <span className="text-muted-vault">Originator</span>
+                        <span className="text-text-primary truncate">{fromCity}</span>
+                        <span className="text-muted-vault">Beneficiary</span>
+                        <span className="text-text-primary truncate">{toCity}</span>
+                        <span className="text-muted-vault">Amount</span>
+                        <span className="text-text-primary">{formatCurrency(amountUsdc)} USDC</span>
+                        <span className="text-muted-vault">Purpose Code</span>
+                        <span className="text-text-primary">INTC (Intercompany)</span>
+                        <span className="text-muted-vault">Status</span>
+                        <span className="text-ok">✓ Validated &amp; On-Chain</span>
+                      </div>
+                    </div>
+
                     <div className="mt-4 flex gap-2">
                       <button
                         onClick={onClose}
@@ -183,9 +207,18 @@ export function SettlementProgressModal({
                             });
                             if (report?.downloadUrl) {
                               window.open(report.downloadUrl, "_blank");
+                              toast.success("Compliance report generated.");
+                            } else {
+                              toast.error("Report generated without a download URL.");
                             }
                           } catch (err) {
                             console.error("Failed to generate report", err);
+                            toast.error(
+                              getErrorMessage(
+                                err,
+                                "Failed to generate report. Please try again.",
+                              ),
+                            );
                           }
                         }}
                         disabled={isGenerating}
@@ -199,6 +232,17 @@ export function SettlementProgressModal({
                         {isGenerating ? "Generating..." : "Download Report"}
                       </button>
                     </div>
+                    {txHash && (
+                      <a
+                        href={getSolanaExplorerTxUrl(txHash)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-sm border border-vault-border bg-vault-surface py-2 font-heading text-xs text-text-primary transition-colors hover:border-teal/30 hover:text-teal"
+                      >
+                        <ExternalLink className="size-3" />
+                        View on Explorer
+                      </a>
+                    )}
                   </motion.div>
                 )}
 

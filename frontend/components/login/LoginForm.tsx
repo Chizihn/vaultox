@@ -44,13 +44,8 @@ export function LoginForm() {
       setAuthError(null);
       setConnectingConnectorId(connectorId);
 
-      // Connect if not already connected
-      if (
-        status !== "connected" ||
-        wallet?.account.address.toString() !== connectorId
-      ) {
-        await connect(connectorId);
-      }
+      // Always connect the chosen connector (connectorId is wallet-standard id, not a pubkey).
+      await connect(connectorId);
 
       setIsModalOpen(false);
     } catch (error: unknown) {

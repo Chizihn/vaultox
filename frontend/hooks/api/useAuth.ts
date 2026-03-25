@@ -46,7 +46,14 @@ export const useAuth = () => {
     isGettingChallenge: getChallengeMutation.isPending,
     verifySignature: verifySignatureMutation.mutateAsync,
     isVerifying: verifySignatureMutation.isPending,
-    logout: () => {
+    logout: async (walletDisconnect?: () => Promise<void>) => {
+      if (walletDisconnect) {
+        try {
+          await walletDisconnect();
+        } catch (e) {
+          console.error("Wallet disconnect failed", e);
+        }
+      }
       resetAuthState();
     },
   };

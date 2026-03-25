@@ -129,4 +129,85 @@ export class VaultsController {
   recordTransaction(@WalletAddress() wallet: string, @Body() body: any) {
     return this.vaultsService.recordTransaction(wallet, body);
   }
+
+  @Post("deposit/confirm-mint")
+  @UseGuards(JwtAuthGuard, ActiveCredentialGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: "Initiate step 2a of Solstice deposit (ConfirmMint)",
+  })
+  confirmMint(@WalletAddress() wallet: string) {
+    return this.vaultsService.depositStep2a(wallet);
+  }
+
+  @Post("deposit/lock")
+  @UseGuards(JwtAuthGuard, ActiveCredentialGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: "Initiate step 2b of Solstice deposit (Lock)",
+  })
+  lockVault(@WalletAddress() wallet: string, @Body() body: any) {
+    return this.vaultsService.depositStep2b(wallet, body.amount);
+  }
+
+  @Post("deposit/cancel")
+  @UseGuards(JwtAuthGuard, ActiveCredentialGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      "Solstice recovery: CancelMint — revert pending mint (collateral recovery)",
+  })
+  cancelMint(
+    @WalletAddress() wallet: string,
+    @Body() body?: { collateral?: "usdc" | "usdt" },
+  ) {
+    return this.vaultsService.cancelMint(wallet, body?.collateral ?? "usdc");
+  }
+
+  @Post("withdraw/request-redeem")
+  @UseGuards(JwtAuthGuard, ActiveCredentialGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: "Initiate step 2 of Solstice withdraw (RequestRedeem)",
+  })
+  requestRedeem(@WalletAddress() wallet: string, @Body() body: any) {
+    return this.vaultsService.withdrawStep2(wallet, body.amount);
+  }
+
+  @Post("withdraw/confirm-redeem")
+  @UseGuards(JwtAuthGuard, ActiveCredentialGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: "Initiate step 3 of Solstice withdraw (ConfirmRedeem)",
+  })
+  confirmRedeem(@WalletAddress() wallet: string) {
+    return this.vaultsService.withdrawStep3(wallet);
+  }
+
+  @Post("withdraw/cancel")
+  @UseGuards(JwtAuthGuard, ActiveCredentialGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      "Solstice recovery: CancelRedeem — cancel pending redeem (USX position restored)",
+  })
+  cancelRedeem(
+    @WalletAddress() wallet: string,
+    @Body() body?: { collateral?: "usdc" | "usdt" },
+  ) {
+    return this.vaultsService.cancelRedeem(wallet, body?.collateral ?? "usdc");
+  }
+
+  @Post("transactions/submit")
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: "Co-sign and submit a partially signed transaction",
+  })
+  submitSignedTransaction(
+    @WalletAddress() wallet: string,
+    @Body() body: { partiallySignedTx: string },
+  ) {
+    return this.vaultsService.coSignAndSubmit(wallet, body.partiallySignedTx);
+  }
 }

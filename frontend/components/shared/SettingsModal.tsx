@@ -110,7 +110,7 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
             className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
-            onClick={onClose}
+            // onClick={onClose} // Removed to prevent accidental closure
           />
 
           <motion.div

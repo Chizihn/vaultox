@@ -226,7 +226,7 @@ This is an automated message from VaultOX.`,
 
     return {
       to,
-      subject: `Settlement Initiated — ${amount} USDC to ${receiver}`,
+      subject: `Settlement Initiated — ${amount} to ${receiver}`,
       html: `
 <html>
   <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
@@ -235,7 +235,7 @@ This is an automated message from VaultOX.`,
       <p>Your cross-border settlement has been initiated and is pending confirmation.</p>
       <div style="background: white; padding: 15px; border-left: 4px solid #4fc3c3; margin: 20px 0;">
         <p><strong>Settlement ID:</strong> ${settlementId}</p>
-        <p><strong>Amount:</strong> ${amount} USDC</p>
+        <p><strong>Amount:</strong> ${amount}</p>
         <p><strong>Receiver:</strong> ${receiver}</p>
         <p><strong>Status:</strong> Awaiting on-chain confirmation</p>
         <p><strong>Initiated:</strong> ${new Date().toISOString()}</p>
@@ -253,7 +253,7 @@ Settlement Initiated
 Your cross-border settlement has been initiated and is pending confirmation.
 
 Settlement ID: ${settlementId}
-Amount: ${amount} USDC
+Amount: ${amount}
 Receiver: ${receiver}
 Status: Awaiting on-chain confirmation
 Initiated: ${new Date().toISOString()}
@@ -276,7 +276,7 @@ This is an automated message from VaultOX.`,
 
     return {
       to,
-      subject: `Settlement Completed ✓ — ${amount} USDC sent`,
+      subject: `Settlement Completed ✓ — ${amount} sent`,
       html: `
 <html>
   <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
@@ -285,7 +285,7 @@ This is an automated message from VaultOX.`,
       <p>Your cross-border settlement has been completed successfully.</p>
       <div style="background: white; padding: 15px; border-left: 4px solid #22c55e; margin: 20px 0;">
         <p><strong>Settlement ID:</strong> ${settlementId}</p>
-        <p><strong>Amount:</strong> ${amount} USDC</p>
+        <p><strong>Amount:</strong> ${amount}</p>
         <p><strong>Transaction Hash:</strong> <code>${txHash}</code></p>
         <p><strong>Status:</strong> Confirmed on-chain</p>
         <p><strong>Completed:</strong> ${new Date().toISOString()}</p>
@@ -303,7 +303,7 @@ Settlement Completed ✓
 Your cross-border settlement has been completed successfully.
 
 Settlement ID: ${settlementId}
-Amount: ${amount} USDC
+Amount: ${amount}
 Transaction Hash: ${txHash}
 Status: Confirmed on-chain
 Completed: ${new Date().toISOString()}
