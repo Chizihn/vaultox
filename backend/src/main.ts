@@ -10,7 +10,7 @@ async function bootstrap() {
   app.enableShutdownHooks();
 
   // ── Global Prefix ──────────────────────────────────────────────────────
-  app.setGlobalPrefix("api/v1");
+  app.setGlobalPrefix("api/v1", { exclude: ["/"] });
 
   // ── CORS ──────────────────────────────────────────────────────────────
   const allowedOrigins = (process.env.CORS_ORIGINS ?? "http://localhost:3000")

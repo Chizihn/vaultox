@@ -6,6 +6,7 @@ import { QueryProvider } from "@/providers/QueryProvider";
 import { SolanaWalletProvider } from "@/providers/SolanaProvider";
 import { AuthGlobalLoader } from "@/components/shared/AuthGlobalLoader";
 import { Toaster } from "@/components/ui/sonner";
+import { AuthBootstrap } from "@/providers/AuthBootstrap";
 
 /* ── Google Fonts (self-hosted via next/font) ──────────────────────────── */
 const syne = Syne({
@@ -92,6 +93,7 @@ export default function RootLayout({
       <body className="bg-vault-base text-text-primary font-heading antialiased min-h-screen">
         <SolanaWalletProvider>
           <QueryProvider>
+            <AuthBootstrap />
             <AuthGlobalLoader />
             {children}
             <Toaster richColors position="top-right" closeButton />
