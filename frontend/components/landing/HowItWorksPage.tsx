@@ -116,7 +116,7 @@ export function HowItWorksPage() {
                 title: "Settle Cross-Border",
                 subtitle: "Atomic execution",
                 description:
-                  "Initiate a USDC settlement with any credentialed counterparty. FX rates lock via SIX Swiss Exchange. Travel Rule data attached. Confirms in ~1.8 seconds.",
+                  "Initiate a USDC settlement with any credentialed counterparty. FX rates lock via SIX Swiss Exchange. Travel Rule data attached. Confirms in ~1.4 seconds.",
                 details: [
                   "SIX-verified FX rates (mTLS)",
                   "FATF Travel Rule on every transfer",
@@ -211,7 +211,7 @@ export function HowItWorksPage() {
               {
                 icon: Zap,
                 title: "Sub-2s Finality",
-                desc: "Solana delivers ~1.8s settlement finality. No correspondent banks, no T+2 delays, no intermediaries.",
+                desc: "Solana delivers ~1.4s settlement finality. No correspondent banks, no T+2 delays, no intermediaries.",
               },
             ].map(({ icon: Icon, title, desc }, i) => (
               <Reveal key={title} delay={i * 0.08}>

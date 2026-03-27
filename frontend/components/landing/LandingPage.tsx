@@ -50,12 +50,12 @@ function Counter({
 
 // ── Marquee ticker ───────────────────────────────────────────────────────────
 const TICKER_ITEMS = [
-  "AMINA → DBS  $2,000,000 USDC  1.4s",
-  "Goldman Digital → AMINA  $500,000 USDC  1.8s",
-  "DBS Singapore → Société Générale  $1,200,000 USDC  2.1s",
-  "AMINA → Deutsche Bank  $750,000 USDC  0.9s",
-  "Société Générale → DBS  $3,000,000 USDC  1.6s",
-  "Deutsche Bank → Goldman Digital  $450,000 USDC  1.1s",
+  "Testnet → Devnet  $30.00 USDC  1.2s",
+  "Merchant → Supplier  $45.50 USDC  1.4s",
+  "Tier 1 → Tier 2  $25.00 USDC  1.1s",
+  "HK → SG Settlement  $60.00 USDC  1.6s",
+  "Internal → Treasury  $15.20 USDC  0.9s",
+  "Settlement Confirmed  $35.00 USDC  1.3s",
 ];
 
 function Ticker() {
@@ -250,21 +250,21 @@ export function LandingPage() {
               {[
                 {
                   label: "Assets Under Management",
-                  value: 4.1,
+                  value: 2840.5,
                   prefix: "$",
-                  suffix: "B",
-                  decimals: 1,
+                  suffix: "",
+                  decimals: 2,
                 },
                 {
                   label: "Settlements Processed",
-                  value: 99847,
+                  value: 14,
                   prefix: "",
                   suffix: "",
                   decimals: 0,
                 },
                 {
                   label: "Avg Settlement Speed",
-                  value: 1.8,
+                  value: 1.4,
                   prefix: "",
                   suffix: "s",
                   decimals: 1,
@@ -325,7 +325,7 @@ export function LandingPage() {
                 title: "Settlement Layer",
                 tag: "Atomic Execution",
                 description:
-                  "Sub-2-second cross-border USDC settlement across 47 corridors. FX-locked at initiation via SIX. Non-custodial escrow, reversible only by mutual signature.",
+                  "Sub-2-second cross-border USDC settlement across 8 corridors. FX-locked at initiation via SIX. Non-custodial escrow, reversible only by mutual signature.",
                 items: [
                   "Solana atomic finality",
                   "Travel Rule compliant (FATF)",
@@ -440,7 +440,7 @@ export function LandingPage() {
                   <span className="size-2.5 rounded-full bg-ok/50" />
                 </div>
                 <span className="font-code text-[10px] text-muted-vault/50">
-                  solana · mainnet-beta
+                  solana · devnet
                 </span>
                 <span className="font-code text-[10px] text-ok">● live</span>
               </div>
@@ -449,7 +449,7 @@ export function LandingPage() {
               <div className="bg-vault-base p-6">
                 <p className="mb-4 font-code text-[11px] text-muted-vault">
                   <span className="text-teal">$</span> anchor deploy
-                  --provider.cluster mainnet
+                  --provider.cluster devnet
                 </p>
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">

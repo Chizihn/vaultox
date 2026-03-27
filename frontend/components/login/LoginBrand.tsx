@@ -4,8 +4,8 @@ import { motion } from "framer-motion";
 import Image from "next/image";
 
 const STATS = [
-  { label: "Assets Under Management", value: "$4.1B", suffix: "+ USDC" },
-  { label: "Cross-Border Settlements", value: "99,847", suffix: "completed" },
+  { label: "Assets Under Management", value: "$2,840.50", suffix: "USDC" },
+  { label: "Cross-Border Settlements", value: "14", suffix: "completed" },
   { label: "Compliance Score", value: "98.6", suffix: "/ 100" },
 ];
 
