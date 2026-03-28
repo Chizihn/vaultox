@@ -13,12 +13,15 @@ import {
   Mail,
   Globe,
   ArrowLeft,
+  ShieldCheck,
+  Info,
 } from "lucide-react";
 import { useAuthStore } from "@/store";
 import type { CredentialStatus } from "@/types";
 import { cn } from "@/lib/utils";
 import api from "@/services/api";
 import Image from "next/image";
+import { toast } from "sonner";
 
 const JURISDICTION_OPTIONS = [
   "Afghanistan",
@@ -283,6 +286,25 @@ function PendingKYCView({
   walletAddress: string;
   onDisconnect: () => void;
 }) {
+  const [isApproving, setIsApproving] = useState(false);
+  const [showDemoInfo, setShowDemoInfo] = useState(false);
+
+  const handleDemoApprove = async () => {
+    setIsApproving(true);
+    try {
+      await api.post("/auth/demo-approve", { walletAddress });
+      toast.success("Institution Approved!", {
+        description: "Vault Passport issued on-chain. Please disconnect and reconnect.",
+      });
+    } catch (error) {
+      toast.error("Approval failed", {
+        description: "Demo approval is only available for hackathon testing.",
+      });
+    } finally {
+      setIsApproving(false);
+    }
+  };
+
   return (
     <motion.div
       key="pending_kyc"
@@ -385,6 +407,44 @@ function PendingKYCView({
       </div>
 
       <button
+        onClick={handleDemoApprove}
+        disabled={isApproving}
+        className="flex w-full items-center justify-center gap-2 rounded-sm bg-teal/10 border border-teal/30 py-2.5 font-heading text-xs font-semibold text-teal transition-all hover:bg-teal/20 disabled:opacity-50"
+      >
+        {isApproving ? "Processing On-Chain..." : "Approve Institution (Demo Mode)"}
+        {!isApproving && <ShieldCheck className="size-4" />}
+      </button>
+
+      <div className="w-full">
+        <button 
+          onClick={() => setShowDemoInfo(!showDemoInfo)}
+          className="flex items-center gap-1.5 font-body text-[10px] text-muted-vault hover:text-teal transition-colors"
+        >
+          <Info className="size-3" />
+          {showDemoInfo ? "Hide implementation details" : "How does approval work?"}
+        </button>
+        
+        <AnimatePresence>
+          {showDemoInfo && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="overflow-hidden"
+            >
+              <div className="mt-2 rounded-sm border border-vault-border bg-vault-base/50 p-3 text-left">
+                <p className="font-heading text-[10px] uppercase tracking-wider text-teal mb-1.5">Automated Tiering Logic</p>
+                <div className="space-y-2 font-body text-[10px] text-muted-vault leading-relaxed">
+                  <p>In production, VaultOX uses a risk-based engine to assign Institutional Tiers. <span className="text-text-primary">Tier 1</span> is automatically recommended after successful Entra ID binding and a &apos;Cleared&apos; AML screening result.</p>
+                  <p>For the hackathon, <span className="text-teal">Demo Mode</span> bypasses the manual Admin Review step. Clicking approve triggers a real on-chain transaction that issues your unique Vault Passport PDA to the Solana Devnet.</p>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      <button
         onClick={onDisconnect}
         className="mt-2 font-body text-xs text-muted-vault underline-offset-2 hover:underline"
       >
@@ -405,6 +465,8 @@ function RequestAccessView({
 }) {
   const [step, setStep] = useState<"form" | "submitted">("form");
   const [isHydrating, setIsHydrating] = useState(true);
+  const [isApproving, setIsApproving] = useState(false);
+  const [showDemoInfo, setShowDemoInfo] = useState(false);
   const [form, setForm] = useState({
     institutionName: "",
     jurisdiction: "",
@@ -464,6 +526,22 @@ function RequestAccessView({
   const handleSubmit = async () => {
     await api.post("/auth/request-access", { ...form, walletAddress });
     setStep("submitted");
+  };
+
+  const handleDemoApprove = async () => {
+    setIsApproving(true);
+    try {
+      await api.post("/auth/demo-approve", { walletAddress });
+      toast.success("Institution Approved!", {
+        description: "Vault Passport issued on-chain. Please disconnect and reconnect.",
+      });
+    } catch (error) {
+      toast.error("Approval failed", {
+        description: "Demo approval is only available for hackathon testing.",
+      });
+    } finally {
+      setIsApproving(false);
+    }
   };
 
   if (isHydrating) {
@@ -678,6 +756,45 @@ function RequestAccessView({
                 </div>
               ))}
             </div>
+
+            <button
+              onClick={handleDemoApprove}
+              disabled={isApproving}
+              className="flex w-full items-center justify-center gap-2 rounded-sm bg-teal/10 border border-teal/30 py-2.5 font-heading text-xs font-semibold text-teal transition-all hover:bg-teal/20 disabled:opacity-50"
+            >
+              {isApproving ? "Issuing Passport..." : "Approve Institution (Demo Mode)"}
+              {!isApproving && <ShieldCheck className="size-4" />}
+            </button>
+
+            <div className="w-full">
+              <button 
+                onClick={() => setShowDemoInfo(!showDemoInfo)}
+                className="flex items-center gap-1.5 font-body text-[10px] text-muted-vault hover:text-teal transition-colors"
+              >
+                <Info className="size-3" />
+                {showDemoInfo ? "Hide implementation details" : "How does approval work?"}
+              </button>
+              
+              <AnimatePresence>
+                {showDemoInfo && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="mt-2 rounded-sm border border-vault-border bg-vault-base/50 p-3 text-left">
+                      <p className="font-heading text-[10px] uppercase tracking-wider text-teal mb-1.5">Automated Tiering Logic</p>
+                      <div className="space-y-2 font-body text-[10px] text-muted-vault leading-relaxed">
+                        <p>In production, VaultOX uses a risk-based engine to assign Institutional Tiers. <span className="text-text-primary">Tier 1</span> is automatically recommended after successful Entra ID binding and a &apos;Cleared&apos; AML screening result.</p>
+                        <p>For the hackathon, <span className="text-teal">Demo Mode</span> bypasses the manual Admin Review step. Clicking approve triggers a real on-chain transaction that issues your unique Vault Passport PDA to the Solana Devnet.</p>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
             <button
               onClick={onDisconnect}
               className="flex items-center gap-1.5 font-body text-xs text-muted-vault underline-offset-2 hover:underline"

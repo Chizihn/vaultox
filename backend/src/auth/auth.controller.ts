@@ -109,6 +109,15 @@ export class AuthController {
     return this.authService.approveAccess(body.walletAddress, body);
   }
 
+  @Post("demo-approve")
+  @HttpCode(200)
+  @ApiOperation({
+    summary: "Demo Mode: Instantly approve KYC and issue on-chain credential",
+  })
+  demoApprove(@Body("walletAddress") walletAddress: string) {
+    return this.authService.demoApproveAccess(walletAddress);
+  }
+
   @Delete("session")
   @HttpCode(200)
   signOut() {

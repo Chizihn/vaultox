@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { motion, useInView } from "framer-motion";
-import { ArrowUpRight, ExternalLink } from "lucide-react";
+import { ArrowUpRight, ExternalLink, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
 
@@ -232,12 +232,12 @@ export function LandingPage() {
               >
                 Enter Platform
               </Link>
-              <a
-                href="#product"
-                className="rounded-sm border border-vault-border px-6 py-2.5 font-heading text-sm text-muted-vault transition-colors hover:border-gold/20 hover:text-text-primary"
-              >
-                View Architecture
-              </a>
+               <Link
+                 href="/whitepaper"
+                 className="rounded-sm border border-vault-border px-6 py-2.5 font-heading text-sm text-muted-vault transition-colors hover:border-gold/20 hover:text-text-primary"
+               >
+                 Read Whitepaper
+               </Link>
             </motion.div>
 
             {/* Hero stats */}
@@ -723,14 +723,14 @@ export function LandingPage() {
                 </p>
               </div>
 
-              <div className="flex flex-col items-start gap-4 sm:items-end">
-                <Link
-                  href="/login"
-                  className="flex items-center gap-2 rounded-sm bg-gold px-8 py-3 font-heading text-sm font-bold text-vault-base transition-opacity hover:opacity-90"
-                >
-                  Access Terminal
-                  <ArrowUpRight className="size-4" />
-                </Link>
+              <div className="flex flex-wrap gap-4">
+              <Link
+                href="/whitepaper"
+                className="group flex items-center justify-center gap-2 rounded-sm bg-gold px-8 py-3.5 font-heading text-base font-semibold text-vault-base transition-all hover:bg-gold/90"
+              >
+                Read Whitepaper
+                <ArrowRight className="size-5 transition-transform group-hover:translate-x-1" />
+              </Link>
                 <a
                   href="https://github.com"
                   target="_blank"

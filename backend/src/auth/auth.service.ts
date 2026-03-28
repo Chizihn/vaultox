@@ -138,4 +138,14 @@ export class AuthService {
   getEntraBindingStatus(subjectId: string, walletAddress: string) {
     return this.entraAdapterService.getBindingStatus(subjectId, walletAddress);
   }
+
+  async demoApproveAccess(walletAddress: string) {
+    return this.complianceService.approveKycRequest(walletAddress, {
+      reviewerNotes: "Approved via Demo Mode (Hackathon)",
+      tier: 1,
+      kycLevel: 3,
+      amlCoverage: 98,
+      validityDays: 365,
+    });
+  }
 }
