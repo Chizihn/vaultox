@@ -146,6 +146,7 @@ export class AuthService {
       kycLevel: 3,
       amlCoverage: 98,
       validityDays: 365,
+      isDemoMode: true,
     });
   }
 }

@@ -38,7 +38,7 @@ VaultOX bridges the gap between traditional finance and DeFi by moving complianc
 
 #### 🏦 Compliance-Gated Treasury Vaults
 (image: vault_strategy_matrix)
-*Description: The Institutional Vault Matrix. Displays tier-gated strategies (T-Bills, Private Credit) with 7-day APY sparklines and Solstice-powered recovery controls.*
+*Description: The Institutional Vault Matrix. Displays tier-gated strategies (T-Bills, Private Credit) with 7-day APY trend sparklines and Solstice-powered recovery controls.*
 
 ---
 

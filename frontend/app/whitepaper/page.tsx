@@ -3,7 +3,6 @@
 import { motion } from "framer-motion";
 import { ArrowLeft, BookOpen, ShieldCheck, Zap, Globe, Lock, BarChart3, Activity } from "lucide-react";
 import Link from "next/link";
-import Image from "next/image";
 
 export default function WhitepaperPage() {
   return (
@@ -16,7 +15,6 @@ export default function WhitepaperPage() {
             <span className="font-heading text-sm font-medium text-muted-vault group-hover:text-gold transition-colors">Return Home</span>
           </Link>
           <div className="flex items-center gap-2">
-            <Image src="/vaultox-icon.png" width={24} height={24} alt="VaultOX" className="rounded-full" />
             <span className="font-heading text-sm font-bold tracking-tight">VAULT<span className="text-gold">OX</span></span>
           </div>
           <div className="w-20" /> {/* Spacer */}
@@ -109,11 +107,8 @@ export default function WhitepaperPage() {
                   </p>
                 </div>
                 <div className="w-full md:w-72 rounded-sm bg-vault-surface border border-vault-border p-4 flex flex-col items-center justify-center min-h-40">
-                  <div className="relative size-24 mb-4">
-                     <Image src="/passport-radar-placeholder.png" width={96} height={96} alt="Radar" className="opacity-50" />
-                     <div className="absolute inset-0 flex items-center justify-center">
-                        <ShieldCheck className="size-10 text-teal animate-pulse" />
-                     </div>
+                  <div className="relative size-24 mb-4 flex items-center justify-center">
+                    <ShieldCheck className="size-10 text-teal animate-pulse" />
                   </div>
                   <span className="text-[10px] uppercase font-bold tracking-widest text-muted-vault text-center">Compliance Radar v1.0</span>
                 </div>
@@ -234,7 +229,9 @@ export default function WhitepaperPage() {
 
           {/* Footer of the article */}
           <footer className="mt-24 border-t border-vault-border pt-12 text-center">
-             <Image src="/vaultox-logo.png" width={120} height={40} alt="VaultOX" className="mx-auto mb-6" />
+             <div className="mb-6 flex justify-center">
+                <span className="font-heading text-xl font-bold tracking-tight">VAULT<span className="text-gold">OX</span></span>
+             </div>
              <p className="font-body text-sm text-muted-vault">
                 StableHacks 2026 — Team VaultOX <br />
                 Built on Solana · Powered by SIX · Yield by Solstice

@@ -552,6 +552,7 @@ export class ComplianceService {
       validityDays?: number;
       attestationHash?: string;
       overrideApprovalKey?: string;
+      isDemoMode?: boolean;
     },
   ) {
     const latestRequest = await this.prisma.kycRequest.findFirst({
@@ -599,7 +600,7 @@ export class ComplianceService {
     ) as 1 | 2 | 3;
 
     const overrideUsed = tier < recommendation.recommendedTier;
-    if (overrideUsed) {
+    if (overrideUsed && !options?.isDemoMode) {
       const configuredOverrideKey = this.normalizeApiKey(
         process.env.ADMIN_OVERRIDE_API_KEY,
       );
